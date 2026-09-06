@@ -1,0 +1,94 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_interactiveslide/student_player
+
+    The student's live screen. Everything inside the data-region nodes is filled
+    in by the student AMD module from the polled state document.
+
+    Example context (json):
+    {
+        "cmid": 12,
+        "name": "Chuong 3",
+        "hasintro": false,
+        "intro": ""
+    }
+}}
+<div class="islide-player" data-region="interactiveslide-player" data-cmid="{{cmid}}">
+
+    <header class="islide-player-bar">
+        <div class="islide-player-title">
+            <span class="islide-player-name">{{name}}</span>
+            <span class="islide-player-slide" data-region="slideposition" hidden></span>
+        </div>
+        <div class="islide-player-meta">
+            <span class="islide-connection" data-region="connection" data-state="connecting">
+                <span class="islide-connection-dot" aria-hidden="true"></span>
+                <span class="islide-connection-label">{{#str}}connecting, mod_interactiveslide{{/str}}</span>
+            </span>
+            <span class="islide-mystars" data-region="mystars" hidden>
+                <span class="islide-star" aria-hidden="true">&#9733;</span>
+                <span class="islide-mystars-value" data-region="mystars-value">0</span>
+            </span>
+            <span class="islide-myrank" data-region="myrank" hidden></span>
+        </div>
+    </header>
+
+    <div class="islide-player-body">
+
+        <div class="islide-waiting" data-region="waiting">
+            <div class="islide-waiting-anim" aria-hidden="true">
+                <span></span><span></span><span></span>
+            </div>
+            <h2 data-region="waiting-title">{{#str}}waitingforteacher, mod_interactiveslide{{/str}}</h2>
+            <p data-region="waiting-text">{{#str}}waitingforteacher_desc, mod_interactiveslide{{/str}}</p>
+            {{#hasintro}}<div class="islide-waiting-intro">{{{intro}}}</div>{{/hasintro}}
+        </div>
+
+        <div class="islide-stage" data-region="stage" hidden>
+            <figure class="islide-stage-image" data-region="stagefigure">
+                <img data-region="slideimage" src="" alt="{{#str}}currentslide, mod_interactiveslide{{/str}}">
+            </figure>
+        </div>
+
+        <div class="islide-answer" data-region="answerpanel" hidden>
+            <div class="islide-answer-head">
+                <h2 class="islide-question" data-region="questiontext"></h2>
+                <div class="islide-timer" data-region="timer" hidden>
+                    <svg class="islide-timer-ring" viewBox="0 0 44 44" aria-hidden="true">
+                        <circle class="islide-timer-track" cx="22" cy="22" r="19"></circle>
+                        <circle class="islide-timer-fill" cx="22" cy="22" r="19" data-region="timer-arc"></circle>
+                    </svg>
+                    <span class="islide-timer-value" data-region="timer-value">0</span>
+                </div>
+            </div>
+
+            <div class="islide-answer-form" data-region="answerform"></div>
+
+            <div class="islide-answer-foot">
+                <button type="button" class="btn btn-primary btn-lg islide-submit" data-action="submit">
+                    {{#str}}submitanswer, mod_interactiveslide{{/str}}
+                </button>
+                <p class="islide-answer-status" data-region="answerstatus" role="status"></p>
+            </div>
+        </div>
+
+        <div class="islide-result" data-region="resultpanel" hidden></div>
+
+        <div class="islide-board-panel" data-region="leaderboard" hidden></div>
+    </div>
+</div>

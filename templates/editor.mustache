@@ -1,0 +1,239 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_interactiveslide/editor
+
+    The slide and interaction editor.
+
+    Example context (json):
+    {
+        "cmid": 12,
+        "name": "Chuong 3",
+        "viewurl": "#",
+        "presenturl": "#",
+        "pdffilename": "lecture.pdf",
+        "haspdf": true
+    }
+}}
+<div class="islide-editor" data-region="interactiveslide-editor" data-cmid="{{cmid}}">
+
+    <header class="islide-editor-bar">
+        <div class="islide-editor-title">
+            <a class="islide-icon-btn" href="{{viewurl}}" title="{{#str}}backtoactivity, mod_interactiveslide{{/str}}">
+                <span aria-hidden="true">&#8592;</span>
+                <span class="islide-sr-only">{{#str}}backtoactivity, mod_interactiveslide{{/str}}</span>
+            </a>
+            <span>{{name}}</span>
+            {{#haspdf}}<span class="islide-pdfname">{{pdffilename}}</span>{{/haspdf}}
+        </div>
+        <div class="islide-editor-actions">
+            <label class="btn btn-outline-primary islide-import-label">
+                {{#str}}importpdf, mod_interactiveslide{{/str}}
+                <input type="file" accept="application/pdf,.pdf" data-region="pdfinput" class="islide-file-input">
+            </label>
+            <a class="btn btn-primary" href="{{presenturl}}">{{#str}}present, mod_interactiveslide{{/str}}</a>
+        </div>
+    </header>
+
+    <div class="islide-import" data-region="import" hidden>
+        <div class="islide-import-head">
+            <strong data-region="import-title">{{#str}}importing, mod_interactiveslide{{/str}}</strong>
+            <span data-region="import-status"></span>
+        </div>
+        <div class="islide-progress"><div class="islide-progress-bar" data-region="import-bar"></div></div>
+    </div>
+
+    <div class="islide-editor-body">
+
+        <aside class="islide-slidelist" data-region="slidelist"
+               aria-label="{{#str}}slides, mod_interactiveslide{{/str}}"></aside>
+
+        <main class="islide-editor-main">
+
+            <div class="islide-empty" data-region="editor-empty">
+                <div class="islide-empty-icon" aria-hidden="true">&#128196;</div>
+                <h3>{{#str}}noslidesyet, mod_interactiveslide{{/str}}</h3>
+                <p>{{#str}}noslidesyet_desc, mod_interactiveslide{{/str}}</p>
+            </div>
+
+            <div class="islide-editor-canvas" data-region="canvas" hidden>
+                <figure class="islide-stage-image">
+                    <img data-region="slideimage" src="" alt="{{#str}}currentslide, mod_interactiveslide{{/str}}">
+                </figure>
+                <div class="islide-slide-tools">
+                    <label class="islide-field islide-field-inline">
+                        <span>{{#str}}slidetitle, mod_interactiveslide{{/str}}</span>
+                        <input type="text" data-region="slidetitle" maxlength="255"
+                               placeholder="{{#str}}slidetitleplaceholder, mod_interactiveslide{{/str}}">
+                    </label>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="deleteslide">
+                        {{#str}}deleteslide, mod_interactiveslide{{/str}}
+                    </button>
+                </div>
+            </div>
+
+            <section class="islide-inspector" data-region="inspector" hidden>
+                <div class="islide-inspector-head">
+                    <h3>{{#str}}interaction, mod_interactiveslide{{/str}}</h3>
+                    <div class="islide-inspector-head-actions">
+                        <button type="button" class="btn btn-sm btn-outline-danger" data-action="deleteinteraction" hidden>
+                            {{#str}}removeinteraction, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+                </div>
+
+                <div class="islide-locked-note" data-region="lockednote" hidden>
+                    <p>{{#str}}interactionlockednote, mod_interactiveslide{{/str}}</p>
+                    <button type="button" class="btn btn-sm btn-outline-danger" data-action="resetinteraction">
+                        {{#str}}clearresponses, mod_interactiveslide{{/str}}
+                    </button>
+                </div>
+
+                <div class="islide-typepicker" data-region="typepicker" role="radiogroup"
+                     aria-label="{{#str}}questiontype, mod_interactiveslide{{/str}}">
+                    <button type="button" class="islide-type" data-qtype="none" role="radio" aria-checked="true">
+                        <span class="islide-type-icon" aria-hidden="true">&#9675;</span>
+                        <span class="islide-type-label">{{#str}}typenone, mod_interactiveslide{{/str}}</span>
+                    </button>
+                    <button type="button" class="islide-type" data-qtype="wordcloud" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#9729;</span>
+                        <span class="islide-type-label">{{#str}}typewordcloud, mod_interactiveslide{{/str}}</span>
+                    </button>
+                    <button type="button" class="islide-type" data-qtype="multichoice" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#9636;</span>
+                        <span class="islide-type-label">{{#str}}typemultichoice, mod_interactiveslide{{/str}}</span>
+                    </button>
+                    <button type="button" class="islide-type" data-qtype="fillblank" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#9251;</span>
+                        <span class="islide-type-label">{{#str}}typefillblank, mod_interactiveslide{{/str}}</span>
+                    </button>
+                    <button type="button" class="islide-type" data-qtype="openended" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#128172;</span>
+                        <span class="islide-type-label">{{#str}}typeopenended, mod_interactiveslide{{/str}}</span>
+                    </button>
+                </div>
+
+                <form class="islide-form" data-region="interactionform" hidden>
+
+                    <label class="islide-field">
+                        <span>{{#str}}questiontext, mod_interactiveslide{{/str}}</span>
+                        <textarea data-field="questiontext" rows="2" maxlength="1000"
+                                  placeholder="{{#str}}questiontextplaceholder, mod_interactiveslide{{/str}}"></textarea>
+                    </label>
+
+                    <div class="islide-field-group" data-region="participationfields" hidden>
+                        <label class="islide-field islide-field-third" data-region="maxentriesfield">
+                            <span>{{#str}}maxentries, mod_interactiveslide{{/str}}</span>
+                            <input type="number" data-field="maxentries" min="1" max="10" value="3">
+                        </label>
+                        <label class="islide-field islide-field-third">
+                            <span data-region="maxlengthlabel">{{#str}}maxwordlength, mod_interactiveslide{{/str}}</span>
+                            <input type="number" data-field="maxwordlength" min="3" max="1000" value="30">
+                        </label>
+                        <label class="islide-field islide-field-third">
+                            <span>{{#str}}participationstars, mod_interactiveslide{{/str}}</span>
+                            <input type="number" data-field="points" min="0" max="20" value="1">
+                        </label>
+                    </div>
+
+                    <div class="islide-field-group" data-region="answertoggle" hidden>
+                        <label class="islide-check">
+                            <span class="islide-check-native"><input type="checkbox" data-field="hasanswer"></span>
+                            <span class="islide-check-box" aria-hidden="true"></span>
+                            <span class="islide-check-text">{{#str}}hasanswer, mod_interactiveslide{{/str}}</span>
+                        </label>
+                        <label class="islide-check" data-region="allowmultiplewrap" hidden>
+                            <span class="islide-check-native"><input type="checkbox" data-field="allowmultiple"></span>
+                            <span class="islide-check-box" aria-hidden="true"></span>
+                            <span class="islide-check-text">{{#str}}allowmultiple, mod_interactiveslide{{/str}}
+                                <small>{{#str}}allowmultiple_hint, mod_interactiveslide{{/str}}</small>
+                            </span>
+                        </label>
+                        <label class="islide-check" data-region="liveresultwrap" hidden>
+                            <span class="islide-check-native"><input type="checkbox" data-field="showliveresult" checked></span>
+                            <span class="islide-check-box" aria-hidden="true"></span>
+                            <span class="islide-check-text">{{#str}}showliveresult, mod_interactiveslide{{/str}}</span>
+                        </label>
+                    </div>
+
+                    <div class="islide-difficulty" data-region="difficultyrow" hidden>
+                        <span class="islide-field-label">{{#str}}difficulty, mod_interactiveslide{{/str}}</span>
+                        <div class="islide-difficulty-options" role="radiogroup">
+                            <button type="button" class="islide-diff" data-difficulty="easy" role="radio" aria-checked="true">
+                                {{#str}}difficultyeasy, mod_interactiveslide{{/str}}
+                                <span class="islide-diff-points" data-region="points-easy">1</span>
+                            </button>
+                            <button type="button" class="islide-diff" data-difficulty="medium" role="radio" aria-checked="false">
+                                {{#str}}difficultymedium, mod_interactiveslide{{/str}}
+                                <span class="islide-diff-points" data-region="points-medium">2</span>
+                            </button>
+                            <button type="button" class="islide-diff" data-difficulty="hard" role="radio" aria-checked="false">
+                                {{#str}}difficultyhard, mod_interactiveslide{{/str}}
+                                <span class="islide-diff-points" data-region="points-hard">3</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div data-region="optionsblock" hidden>
+                        <span class="islide-field-label">{{#str}}options, mod_interactiveslide{{/str}}</span>
+                        <div class="islide-options" data-region="options"></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-action="addoption">
+                            {{#str}}addoption, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+
+                    <div data-region="blanksblock" hidden>
+                        <span class="islide-field-label">{{#str}}blanks, mod_interactiveslide{{/str}}</span>
+                        <div class="islide-blanks" data-region="blanks"></div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" data-action="addblank">
+                            {{#str}}addblank, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+
+                    <div class="islide-field-group">
+                        <label class="islide-field islide-field-half">
+                            <span>{{#str}}timerseconds, mod_interactiveslide{{/str}}</span>
+                            <input type="number" data-field="timerseconds" min="0" max="3600" step="5" value="0">
+                            <small>{{#str}}timerseconds_help, mod_interactiveslide{{/str}}</small>
+                        </label>
+                        <div class="islide-field islide-field-half islide-check-column">
+                            <label class="islide-check">
+                                <span class="islide-check-native"><input type="checkbox" data-field="showleaderboard" checked></span>
+                                <span class="islide-check-box" aria-hidden="true"></span>
+                                <span class="islide-check-text">{{#str}}showleaderboardafter, mod_interactiveslide{{/str}}</span>
+                            </label>
+                            <label class="islide-check">
+                                <span class="islide-check-native"><input type="checkbox" data-field="allowretry"></span>
+                                <span class="islide-check-box" aria-hidden="true"></span>
+                                <span class="islide-check-text">{{#str}}allowretry, mod_interactiveslide{{/str}}</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="islide-form-foot">
+                        <span class="islide-save-status" data-region="savestatus" role="status"></span>
+                        <button type="button" class="btn btn-primary" data-action="saveinteraction">
+                            {{#str}}saveinteraction, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+                </form>
+            </section>
+        </main>
+    </div>
+
+    <div class="islide-toast" data-region="toast" role="status" aria-live="polite" hidden></div>
+</div>

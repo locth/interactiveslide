@@ -1,0 +1,2741 @@
+/* This file is part of Moodle - https://moodle.org/
+ *
+ * Moodle is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Moodle is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * Styles for mod_interactiveslide.
+ *
+ * Every rule is scoped under an .islide- class so nothing here can leak into
+ * the surrounding Moodle theme.
+ */
+
+/* Colour tokens.
+ *
+ * These follow Moodle, not the operating system. Moodle 5 carries its own
+ * light/dark switch and publishes the result as Bootstrap custom properties, so
+ * reading those keeps the plugin in step with the page it sits on. An earlier
+ * version keyed off prefers-color-scheme instead, which put light text on a
+ * light page whenever the two disagreed.
+ *
+ * Every tint is an alpha overlay rather than a fixed pastel, so it reads
+ * correctly over either background with no second palette to maintain.
+ */
+.mod-interactiveslide {
+    --islide-ink: var(--bs-body-color, #111827);
+    --islide-muted: var(--bs-secondary-color, #6b7280);
+    --islide-surface: var(--bs-body-bg, #ffffff);
+    --islide-canvas: var(--bs-tertiary-bg, #f1f3f5);
+    --islide-line: var(--bs-border-color, #e5e7eb);
+
+    --islide-accent: #6366f1;
+    --islide-accent-strong: #4f46e5;
+    --islide-accent-soft: rgba(99, 102, 241, .16);
+    --islide-success: #16a34a;
+    --islide-success-soft: rgba(22, 163, 74, .16);
+    --islide-danger: #dc2626;
+    --islide-danger-soft: rgba(220, 38, 38, .14);
+    --islide-star: #f59e0b;
+    --islide-star-soft: rgba(245, 158, 11, .18);
+
+    --islide-gold: #f2b705;
+    --islide-silver: #9aa5b1;
+    --islide-bronze: #cd7f32;
+
+    /* The star button. Two golds rather than one: the bright end carries the
+     * hover fill, the deep end carries the resting text, because bright gold on
+     * a light panel is not readable at button size. */
+    --islide-award-line: #e6b422;
+    --islide-award-ink: #8a6200;
+    --islide-award-tint: rgba(242, 183, 5, .16);
+    /* Gold deep enough for the white label to sit on: white reaches 3.8:1 at
+     * the middle of this gradient and 6.1:1 at its foot, against 2.9:1 for a
+     * brighter gold that reads the same from a distance. */
+    --islide-award-fill: linear-gradient(135deg, #d29a10, #845a06);
+    --islide-award-fill-line: #845a06;
+
+    --islide-radius: 16px;
+    --islide-radius-sm: 10px;
+    --islide-shadow: 0 1px 2px rgba(17, 24, 39, .06), 0 8px 24px rgba(17, 24, 39, .08);
+    --islide-shadow-lg: 0 24px 60px rgba(17, 24, 39, .28);
+
+    --islide-gap: 1rem;
+    /* Overwritten per slide from the imported page size, so a deck never gets
+     * letterboxed against a guessed ratio. */
+    --islide-aspect: 16 / 9;
+}
+
+.mod-interactiveslide [hidden] {
+    display: none !important;
+}
+
+/* ---------- Shared pieces ---------- */
+
+.islide-card {
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius);
+    box-shadow: var(--islide-shadow);
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1.25rem;
+    color: var(--islide-ink);
+}
+
+.islide-card-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 .85rem;
+}
+
+.islide-star {
+    color: var(--islide-star);
+    margin-left: .15em;
+}
+
+.islide-empty-note {
+    color: var(--islide-muted);
+    font-style: italic;
+    margin: 1rem 0;
+    text-align: center;
+}
+
+.islide-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 .5rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.islide-icon-btn:hover {
+    background: var(--islide-accent-soft);
+    border-color: var(--islide-accent);
+    color: var(--islide-ink);
+    text-decoration: none;
+}
+
+.islide-icon-btn:active {
+    transform: scale(.96);
+}
+
+.islide-toast {
+    position: fixed;
+    left: 50%;
+    bottom: 2rem;
+    transform: translateX(-50%);
+    z-index: 1080;
+    max-width: min(90vw, 30rem);
+    padding: .7rem 1.1rem;
+    border-radius: 999px;
+    background: var(--islide-ink);
+    color: var(--islide-surface);
+    box-shadow: var(--islide-shadow-lg);
+    font-size: .95rem;
+}
+
+.islide-toast[data-tone="success"] {
+    background: var(--islide-success);
+    color: #fff;
+}
+
+.islide-toast[data-tone="error"] {
+    background: var(--islide-danger);
+    color: #fff;
+}
+
+/* ---------- Timer ---------- */
+
+.islide-timer {
+    position: relative;
+    width: 3rem;
+    height: 3rem;
+    flex: none;
+}
+
+.islide-timer-lg {
+    width: 4.5rem;
+    height: 4.5rem;
+}
+
+.islide-timer-ring {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.islide-timer-track,
+.islide-timer-fill {
+    fill: none;
+    stroke-width: 4;
+}
+
+.islide-timer-track {
+    stroke: var(--islide-line);
+}
+
+.islide-timer-fill {
+    stroke: var(--islide-accent);
+    stroke-linecap: round;
+    transition: stroke-dashoffset .25s linear, stroke .3s ease;
+}
+
+.islide-timer[data-level="low"] .islide-timer-fill {
+    stroke: var(--islide-danger);
+}
+
+.islide-timer[data-level="low"] {
+    animation: islide-pulse 1s ease-in-out infinite;
+}
+
+.islide-timer-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--islide-ink);
+}
+
+.islide-timer-lg .islide-timer-value {
+    font-size: 1.35rem;
+}
+
+@keyframes islide-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.06); }
+}
+
+/* ---------- Leaderboard ---------- */
+
+.islide-board {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+}
+
+.islide-board-row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.5rem 2.25rem 1fr auto auto;
+    align-items: center;
+    gap: .6rem;
+    padding: .55rem .8rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+    color: var(--islide-ink);
+    border: 1px solid transparent;
+}
+
+.islide-board-compact .islide-board-row {
+    padding: .4rem .65rem;
+    font-size: .95rem;
+}
+
+.islide-board-rank {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: 50%;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: var(--islide-muted);
+    background: transparent;
+}
+
+/* The top three carry the whole motivational weight of a leaderboard, so they
+ * get a medal and a tinted lane rather than another grey row. */
+.islide-board-row.islide-rank-1,
+.islide-board-row.islide-rank-2,
+.islide-board-row.islide-rank-3 {
+    border-color: var(--islide-medal, transparent);
+    background:
+        linear-gradient(90deg,
+            color-mix(in srgb, var(--islide-medal) 26%, transparent),
+            color-mix(in srgb, var(--islide-medal) 4%, transparent) 55%,
+            transparent),
+        var(--islide-canvas);
+}
+
+.islide-board-row.islide-rank-1 { --islide-medal: var(--islide-gold); }
+.islide-board-row.islide-rank-2 { --islide-medal: var(--islide-silver); }
+.islide-board-row.islide-rank-3 { --islide-medal: var(--islide-bronze); }
+
+.islide-board-row.islide-rank-1 .islide-board-rank,
+.islide-board-row.islide-rank-2 .islide-board-rank,
+.islide-board-row.islide-rank-3 .islide-board-rank {
+    color: #1b1300;
+    background: var(--islide-medal);
+    box-shadow: 0 2px 8px color-mix(in srgb, var(--islide-medal) 55%, transparent);
+}
+
+.islide-board-row.islide-rank-1 .islide-board-name,
+.islide-board-row.islide-rank-2 .islide-board-name,
+.islide-board-row.islide-rank-3 .islide-board-name {
+    font-weight: 700;
+}
+
+.islide-board-row.islide-rank-1 .islide-board-avatar img {
+    box-shadow: 0 0 0 2px var(--islide-gold);
+}
+
+.islide-board-medal {
+    font-size: 1.05rem;
+    line-height: 1;
+}
+
+.islide-board-me {
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+.islide-board-avatar img {
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.islide-board-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.islide-board-stars {
+    display: inline-flex;
+    align-items: center;
+    gap: .15rem;
+    padding: .18rem .55rem;
+    border-radius: 999px;
+    background: var(--islide-star-soft);
+    color: var(--islide-ink);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-board-streak {
+    font-size: .8rem;
+    color: var(--islide-muted);
+}
+
+/* ---------- Teacher hub ---------- */
+
+.islide-live-banner {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    border-radius: var(--islide-radius);
+    background: linear-gradient(135deg, var(--islide-accent), #7c3aed);
+    color: #fff;
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-live-banner .btn {
+    margin-left: auto;
+}
+
+.islide-live-dot {
+    width: .7rem;
+    height: .7rem;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, .7);
+    animation: islide-blip 1.8s infinite;
+    flex: none;
+}
+
+@keyframes islide-blip {
+    70% { box-shadow: 0 0 0 .6rem rgba(34, 197, 94, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+.islide-live-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.islide-live-code {
+    display: flex;
+    flex-direction: column;
+    padding: .35rem .8rem;
+    border-radius: var(--islide-radius-sm);
+    background: rgba(255, 255, 255, .18);
+}
+
+.islide-live-code-label {
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    opacity: .85;
+}
+
+.islide-live-code-value {
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: .18em;
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.islide-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1.1rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1;
+    color: var(--islide-ink);
+}
+
+.islide-stat-accent .islide-stat-value {
+    color: var(--islide-star);
+}
+
+.islide-stat-label {
+    margin-top: .35rem;
+    font-size: .85rem;
+    color: var(--islide-muted);
+    text-align: center;
+}
+
+.islide-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    margin-bottom: 1.5rem;
+}
+
+.islide-empty {
+    text-align: center;
+    padding: 3rem 1rem;
+    color: var(--islide-muted);
+}
+
+.islide-empty-icon {
+    font-size: 3rem;
+    margin-bottom: .75rem;
+}
+
+.islide-empty h3 {
+    color: var(--islide-ink);
+    font-size: 1.15rem;
+}
+
+/* ---------- Slide stage ---------- */
+
+.islide-stage {
+    position: relative;
+    border-radius: var(--islide-radius);
+    overflow: hidden;
+    background: #0b1020;
+    box-shadow: var(--islide-shadow);
+}
+
+/* The box takes the imported page's own ratio, so a 16:9 deck fills it exactly
+ * and nothing is letterboxed. A flex layout was used here before, which let the
+ * image shrink along the main axis and squashed every slide. */
+.islide-stage-image {
+    margin: 0;
+    position: relative;
+    width: 100%;
+    aspect-ratio: var(--islide-aspect, 16 / 9);
+    background: #0b1020;
+}
+
+.islide-stage-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* ---------- Student player ---------- */
+
+.islide-player {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.islide-player-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: .6rem 1rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-player-title {
+    display: flex;
+    align-items: baseline;
+    gap: .6rem;
+    min-width: 0;
+}
+
+.islide-player-name {
+    font-weight: 600;
+    color: var(--islide-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.islide-player-slide {
+    font-size: .85rem;
+    color: var(--islide-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-player-meta {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+}
+
+.islide-connection {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .8rem;
+    color: var(--islide-muted);
+}
+
+.islide-connection-dot {
+    width: .5rem;
+    height: .5rem;
+    border-radius: 50%;
+    background: var(--islide-muted);
+}
+
+.islide-connection[data-state="online"] .islide-connection-dot { background: #22c55e; }
+.islide-connection[data-state="offline"] .islide-connection-dot { background: var(--islide-danger); }
+
+.islide-mystars {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    background: #fffbeb;
+    color: #92400e;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-myrank {
+    font-size: .85rem;
+    color: var(--islide-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-pop {
+    animation: islide-pop .5s ease;
+}
+
+@keyframes islide-pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.28); }
+    100% { transform: scale(1); }
+}
+
+.islide-waiting {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    color: var(--islide-muted);
+}
+
+.islide-waiting h2 {
+    font-size: 1.25rem;
+    color: var(--islide-ink);
+}
+
+.islide-waiting-anim {
+    display: flex;
+    justify-content: center;
+    gap: .5rem;
+    margin-bottom: 1.25rem;
+}
+
+.islide-waiting-anim span {
+    width: .8rem;
+    height: .8rem;
+    border-radius: 50%;
+    background: var(--islide-accent);
+    animation: islide-bounce 1.2s infinite ease-in-out;
+}
+
+.islide-waiting-anim span:nth-child(2) { animation-delay: .16s; }
+.islide-waiting-anim span:nth-child(3) { animation-delay: .32s; }
+
+@keyframes islide-bounce {
+    0%, 80%, 100% { transform: translateY(0); opacity: .5; }
+    40% { transform: translateY(-.6rem); opacity: 1; }
+}
+
+.islide-answer {
+    padding: 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-answer-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.islide-question {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--islide-ink);
+}
+
+.islide-answer-foot {
+    margin-top: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.islide-submit {
+    min-width: 12rem;
+}
+
+.islide-answer-status {
+    margin: 0;
+    font-size: .92rem;
+    color: var(--islide-muted);
+}
+
+.islide-answer-status[data-tone="success"] { color: var(--islide-success); font-weight: 600; }
+.islide-answer-status[data-tone="error"] { color: var(--islide-danger); font-weight: 600; }
+
+.islide-form-locked {
+    opacity: .68;
+}
+
+.islide-result {
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+    color: var(--islide-ink);
+}
+
+.islide-result-title {
+    margin: 0 0 .75rem;
+    font-size: .85rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--islide-muted);
+}
+
+.islide-board-panel {
+    padding: 1.1rem 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+    color: var(--islide-ink);
+}
+
+/* Word cloud inputs. */
+
+.islide-wordinputs {
+    display: grid;
+    gap: .6rem;
+}
+
+.islide-wordinput,
+.islide-blankinput input,
+.islide-field input,
+.islide-field textarea,
+.islide-field select {
+    width: 100%;
+    padding: .65rem .85rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    font-size: 1rem;
+}
+
+.islide-wordinput:focus,
+.islide-blankinput input:focus,
+.islide-field input:focus,
+.islide-field textarea:focus {
+    outline: none;
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+/* Choice buttons. */
+
+.islide-choices {
+    display: grid;
+    gap: .6rem;
+}
+
+.islide-choice {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    padding: .85rem 1rem;
+    margin: 0;
+    border: 2px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, transform .1s ease;
+}
+
+.islide-choice:hover {
+    border-color: var(--islide-accent);
+    background: var(--islide-accent-soft);
+}
+
+.islide-choice:active {
+    transform: scale(.99);
+}
+
+
+
+.islide-choice-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex: none;
+    border-radius: 50%;
+    background: var(--islide-accent-soft);
+    color: var(--islide-accent-strong);
+    font-weight: 700;
+}
+
+.islide-choice:has(input:checked) .islide-choice-letter {
+    background: var(--islide-accent);
+    color: #fff;
+}
+
+.islide-choice:has(input:checked) {
+    border-color: var(--islide-accent);
+    background: var(--islide-accent-soft);
+}
+
+.islide-choice-correct {
+    border-color: var(--islide-success);
+    background: var(--islide-success-soft);
+}
+
+.islide-choice-wrong {
+    opacity: .6;
+}
+
+/* Blank inputs. */
+
+.islide-blankinputs {
+    display: grid;
+    gap: .85rem;
+}
+
+.islide-blankinput {
+    display: block;
+    margin: 0;
+}
+
+.islide-blankinput-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    margin-bottom: .3rem;
+    font-weight: 600;
+    color: var(--islide-ink);
+}
+
+.islide-blankinput-points {
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--islide-star);
+}
+
+/* ---------- Results ---------- */
+
+.islide-bars {
+    display: grid;
+    gap: .55rem;
+}
+
+.islide-bar {
+    display: grid;
+    grid-template-columns: 2rem minmax(6rem, 14rem) 1fr auto;
+    align-items: center;
+    gap: .7rem;
+}
+
+.islide-bars-compact .islide-bar {
+    grid-template-columns: 1.6rem minmax(4rem, 9rem) 1fr auto;
+    font-size: .9rem;
+}
+
+.islide-bar-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 50%;
+    background: var(--islide-accent-soft);
+    color: var(--islide-accent-strong);
+    font-weight: 700;
+    font-size: .85rem;
+}
+
+.islide-bar-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--islide-ink);
+}
+
+.islide-bar-track {
+    height: 1.4rem;
+    border-radius: 999px;
+    background: var(--islide-canvas);
+    overflow: hidden;
+}
+
+.islide-bar-fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--islide-accent), #7c3aed);
+    transition: width .5s cubic-bezier(.22, 1, .36, 1);
+}
+
+.islide-bar-correct .islide-bar-letter {
+    background: var(--islide-success);
+    color: #fff;
+}
+
+.islide-bar-correct .islide-bar-fill {
+    background: linear-gradient(90deg, var(--islide-success), #4ade80);
+}
+
+.islide-bar-count {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--islide-ink);
+}
+
+.islide-bar-count small {
+    color: var(--islide-muted);
+    font-weight: 500;
+}
+
+/* Word cloud. */
+
+.islide-cloud-canvas {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 16rem;
+}
+
+.islide-cloud-word {
+    position: absolute;
+    white-space: nowrap;
+    font-weight: 700;
+    line-height: 1.1;
+    animation: islide-fadein .4s ease both;
+}
+
+@keyframes islide-fadein {
+    from { opacity: 0; transform: scale(.85); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.islide-cloud-tone-0 { color: #4f46e5; }
+.islide-cloud-tone-1 { color: #0891b2; }
+.islide-cloud-tone-2 { color: #db2777; }
+.islide-cloud-tone-3 { color: #ea580c; }
+.islide-cloud-tone-4 { color: #16a34a; }
+.islide-cloud-tone-5 { color: #7c3aed; }
+
+.islide-cloud-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: .35rem;
+}
+
+.islide-cloud-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .35rem .7rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+}
+
+.islide-cloud-list-count {
+    font-weight: 700;
+    color: var(--islide-accent);
+}
+
+/* Blank results. */
+
+.islide-blankresults {
+    display: grid;
+    gap: 1rem;
+}
+
+.islide-blankresult-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-bottom: .4rem;
+}
+
+.islide-blankresult-label {
+    font-weight: 600;
+    color: var(--islide-ink);
+}
+
+.islide-blankresult-key {
+    font-size: .85rem;
+    color: var(--islide-success);
+    font-weight: 600;
+}
+
+.islide-chiplist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+
+.islide-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    background: var(--islide-canvas);
+    border: 1px solid var(--islide-line);
+    color: var(--islide-ink);
+    font-size: .9rem;
+}
+
+.islide-chip-correct {
+    background: var(--islide-success-soft);
+    border-color: var(--islide-success);
+}
+
+.islide-chip-empty {
+    color: var(--islide-muted);
+    font-style: italic;
+}
+
+.islide-chip-count {
+    font-weight: 700;
+    color: var(--islide-muted);
+}
+
+/* ---------- Presenter console ---------- */
+
+.islide-present {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 4rem);
+    min-height: 32rem;
+    background: var(--islide-canvas);
+    color: var(--islide-ink);
+}
+
+.islide-present:fullscreen {
+    height: 100vh;
+    padding: 0;
+}
+
+.islide-present-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .6rem 1rem;
+    background: var(--islide-surface);
+    border-bottom: 1px solid var(--islide-line);
+    flex: none;
+}
+
+.islide-present-left,
+.islide-present-right,
+.islide-present-center {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.islide-present-right {
+    margin-left: auto;
+}
+
+.islide-present-center {
+    padding: .3rem .8rem;
+    border-radius: 999px;
+    background: var(--islide-canvas);
+}
+
+.islide-present-name {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 22vw;
+}
+
+.islide-present-code {
+    font-weight: 700;
+    letter-spacing: .16em;
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-present-online {
+    font-size: .85rem;
+    color: var(--islide-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-present-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+.islide-filmstrip,
+.islide-slidelist {
+    width: 11rem;
+    flex: none;
+    overflow-y: auto;
+    padding: .75rem;
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    background: var(--islide-surface);
+    border-right: 1px solid var(--islide-line);
+}
+
+.islide-thumb {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 0;
+    /* Without this a long deck lets flex shrink every thumbnail to a sliver. */
+    flex: 0 0 auto;
+    border: 2px solid transparent;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color .15s ease, transform .1s ease;
+}
+
+.islide-thumb img {
+    aspect-ratio: var(--islide-aspect, 16 / 9);
+    object-fit: cover;
+    object-position: top center;
+    background: #0b1020;
+}
+
+.islide-thumb:hover {
+    border-color: var(--islide-accent);
+}
+
+.islide-thumb-active {
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+.islide-thumb img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.islide-thumb-index {
+    position: absolute;
+    top: .25rem;
+    left: .25rem;
+    padding: .05rem .4rem;
+    border-radius: 999px;
+    background: rgba(17, 24, 39, .7);
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.islide-thumb-badge {
+    position: absolute;
+    right: .25rem;
+    bottom: .25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    height: 1.25rem;
+    padding: 0 .3rem;
+    border-radius: 999px;
+    color: #fff;
+    font-size: .65rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 0 0 2px var(--islide-surface);
+}
+
+.islide-thumb-wordcloud { background: #0891b2; }
+.islide-thumb-multichoice { background: #4f46e5; }
+.islide-thumb-fillblank { background: #db2777; }
+
+.islide-thumb-draggable {
+    cursor: grab;
+}
+
+.islide-dragging {
+    opacity: .45;
+}
+
+.islide-present-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 1rem;
+    gap: .75rem;
+}
+
+.islide-stage-present {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.islide-stage-present .islide-stage-image {
+    width: 100%;
+    height: 100%;
+}
+
+.islide-start-badge {
+    position: absolute;
+    right: 1.5rem;
+    bottom: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .85rem 1.5rem;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--islide-accent), #7c3aed);
+    color: #fff;
+    font-size: 1.05rem;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: var(--islide-shadow-lg);
+    animation: islide-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes islide-breathe {
+    0%, 100% { transform: translateY(0); box-shadow: 0 12px 30px rgba(79, 70, 229, .45); }
+    50% { transform: translateY(-3px); box-shadow: 0 20px 44px rgba(79, 70, 229, .55); }
+}
+
+.islide-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.5rem;
+    /* Fully opaque on purpose. A translucent panel let the slide underneath
+     * show through the words, which is exactly what made the question hard to
+     * read on the projector. Press Escape to see the slide again. */
+    background: #f6f8fc;
+    animation: islide-fadein .25s ease both;
+}
+
+.islide-overlay-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    flex: none;
+}
+
+.islide-overlay-question {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.islide-overlay-meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex: none;
+}
+
+.islide-overlay-count {
+    padding: .35rem .9rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .14);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.islide-overlay .islide-timer-track {
+    stroke: #d3dced;
+}
+
+.islide-overlay-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.islide-overlay-board {
+    flex: none;
+    max-height: 40%;
+    overflow: auto;
+    padding: .75rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+}
+
+.islide-transport {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    padding: .6rem .75rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    flex: none;
+}
+
+.islide-transport-position {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    min-width: 4.5rem;
+    text-align: center;
+}
+
+.islide-transport-actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+/* ---------- Editor ---------- */
+
+.islide-editor {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.islide-editor-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    padding: .6rem 1rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-editor-title {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    font-weight: 600;
+    min-width: 0;
+}
+
+.islide-pdfname {
+    font-weight: 400;
+    font-size: .85rem;
+    color: var(--islide-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.islide-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+.islide-import-label {
+    margin: 0;
+    cursor: pointer;
+}
+
+.islide-file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+}
+
+.islide-import {
+    padding: .85rem 1rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-accent-soft);
+    border: 1px solid var(--islide-accent);
+}
+
+.islide-import-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .5rem;
+    font-size: .92rem;
+}
+
+.islide-progress {
+    height: .5rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .12);
+    overflow: hidden;
+}
+
+.islide-progress-bar {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: var(--islide-accent);
+    transition: width .3s ease;
+}
+
+.islide-editor-body {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    min-height: 30rem;
+}
+
+.islide-slidelist {
+    max-height: 42rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius);
+}
+
+.islide-editor-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.islide-editor-canvas {
+    border-radius: var(--islide-radius);
+    overflow: hidden;
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-editor-canvas .islide-stage-image {
+    background: #0b1020;
+    max-height: 26rem;
+}
+
+.islide-slide-tools {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    padding: .75rem 1rem;
+    border-top: 1px solid var(--islide-line);
+}
+
+.islide-inspector {
+    padding: 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    box-shadow: var(--islide-shadow);
+}
+
+.islide-inspector-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.islide-inspector-head h3 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.islide-locked-note {
+    padding: .6rem .85rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-danger-soft);
+    color: var(--islide-danger);
+    font-size: .9rem;
+}
+
+.islide-typepicker {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    gap: .6rem;
+    margin-bottom: 1.25rem;
+}
+
+.islide-type {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    padding: .9rem .5rem;
+    border: 2px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease;
+}
+
+.islide-type:hover:not(:disabled) {
+    border-color: var(--islide-accent);
+    background: var(--islide-accent-soft);
+}
+
+.islide-type-active {
+    border-color: var(--islide-accent);
+    background: var(--islide-accent-soft);
+}
+
+.islide-type-icon {
+    font-size: 1.5rem;
+}
+
+.islide-type-label {
+    font-size: .88rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.islide-form {
+    display: grid;
+    gap: 1.1rem;
+}
+
+.islide-field {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    margin: 0;
+}
+
+.islide-field > span,
+.islide-field-label {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--islide-muted);
+}
+
+.islide-field small {
+    font-size: .78rem;
+    color: var(--islide-muted);
+}
+
+.islide-field-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.islide-field-half { flex: 1 1 14rem; }
+.islide-field-third { flex: 1 1 9rem; }
+
+.islide-field-inline {
+    flex-direction: row;
+    align-items: center;
+    gap: .6rem;
+    flex: 1;
+}
+
+.islide-field-inline > span {
+    flex: none;
+}
+
+/* Checkboxes are drawn here rather than styled.
+ *
+ * Moodle's theme has its own rules for input[type=checkbox], and they are scoped
+ * tightly enough to win against anything a plugin stylesheet can reasonably say.
+ * Trying to resize the native control just produced a wide pill with the tick
+ * floating at one end. Hiding the real input and painting a box next to it is
+ * how the option rows and the answer choices in this plugin already work, and it
+ * cannot be overridden by a theme.
+ *
+ * A grid rather than flex, so the box column is a fixed width and a label that
+ * wraps to two lines still starts level with it.
+ */
+.islide-check {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.2rem 1fr;
+    align-items: start;
+    column-gap: .55rem;
+    margin: 0 0 .55rem;
+    line-height: 1.35;
+    cursor: pointer;
+}
+
+/* The real control lives inside a one pixel window that clips it.
+ *
+ * Hiding the input itself is not enough: a theme rule scoped to an id beats any
+ * selector a plugin can write, and can hand the input back its size, its
+ * position and its opacity. Nothing a theme says about `input` reaches this
+ * wrapper, and `overflow: hidden` on a one pixel box clips whatever the input
+ * becomes. The input stays focusable and stays in the accessibility tree.
+ */
+.islide-check-native,
+.islide-choice .islide-check-native,
+.islide-option-correct .islide-check-native {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
+}
+
+.islide-check-box {
+    grid-column: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    /* Stated rather than assumed: a theme that has not set border-box would
+     * otherwise make the box 4px larger than the column reserved for it. */
+    box-sizing: border-box;
+    width: 1.2rem;
+    height: 1.2rem;
+    /* Centre the box on the first line of the label, derived from the line
+     * height rather than guessed, so it holds at any font size. */
+    margin-top: calc((1.35em - 1.2rem) / 2);
+    border: 2px solid var(--islide-line);
+    border-radius: .32rem;
+    background: var(--islide-surface);
+    transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+
+.islide-check-box::after {
+    content: "";
+    width: .3rem;
+    height: .6rem;
+    border: solid #ffffff;
+    border-width: 0 2px 2px 0;
+    transform: translateY(-1px) rotate(45deg);
+    opacity: 0;
+    transition: opacity .12s ease;
+}
+
+.islide-check:hover .islide-check-box {
+    border-color: var(--islide-accent);
+}
+
+/* The input is nested now, so state is read from the label. */
+.islide-check:has(input:checked) .islide-check-box {
+    background: var(--islide-accent);
+    border-color: var(--islide-accent);
+}
+
+.islide-check:has(input:checked) .islide-check-box::after {
+    opacity: 1;
+}
+
+.islide-check:has(input:focus-visible) .islide-check-box {
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+.islide-check:has(input:disabled) .islide-check-box {
+    opacity: .55;
+}
+
+.islide-check:has(input:disabled) {
+    cursor: not-allowed;
+}
+
+.islide-check-text {
+    grid-column: 2;
+    min-width: 0;
+}
+
+.islide-check-column {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 1.35rem;
+}
+
+.islide-difficulty-options {
+    display: flex;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+.islide-diff {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem .9rem;
+    border: 2px solid var(--islide-line);
+    border-radius: 999px;
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    cursor: pointer;
+}
+
+.islide-diff-active {
+    border-color: var(--islide-star);
+    background: #fffbeb;
+    color: #92400e;
+}
+
+.islide-diff-points {
+    font-weight: 700;
+    color: var(--islide-star);
+}
+
+.islide-options,
+.islide-blanks {
+    display: grid;
+    gap: .55rem;
+    margin: .4rem 0 .7rem;
+}
+
+.islide-option-row {
+    display: grid;
+    grid-template-columns: 2rem 1fr auto auto;
+    align-items: center;
+    gap: .6rem;
+}
+
+.islide-option-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: var(--islide-accent-soft);
+    color: var(--islide-accent-strong);
+    font-weight: 700;
+}
+
+.islide-option-text {
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+}
+
+.islide-option-correct {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin: 0;
+    border-radius: var(--islide-radius-sm);
+    border: 1px solid var(--islide-line);
+    cursor: pointer;
+    color: var(--islide-muted);
+}
+
+.islide-option-correct:has(input:checked) {
+    background: var(--islide-success-soft);
+    border-color: var(--islide-success);
+    color: var(--islide-success);
+}
+
+
+
+.islide-blank-row {
+    padding: .75rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+}
+
+.islide-blank-head {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin-bottom: .6rem;
+}
+
+.islide-blank-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    flex: none;
+    border-radius: 50%;
+    background: #fce7f3;
+    color: #9d174d;
+    font-weight: 700;
+    font-size: .85rem;
+}
+
+.islide-blank-label {
+    flex: 1;
+    padding: .5rem .7rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+}
+
+.islide-blank-scoring {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.islide-form-foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--islide-line);
+}
+
+.islide-save-status {
+    font-size: .9rem;
+    color: var(--islide-muted);
+}
+
+.islide-save-status[data-tone="success"] { color: var(--islide-success); }
+.islide-save-status[data-tone="error"] { color: var(--islide-danger); }
+
+.islide-report th,
+.islide-report td {
+    white-space: nowrap;
+}
+
+/* ---------- Narrow screens ---------- */
+
+@media (max-width: 900px) {
+    .islide-present-body,
+    .islide-editor-body {
+        flex-direction: column;
+    }
+
+    .islide-filmstrip,
+    .islide-slidelist {
+        width: 100%;
+        max-height: 8.5rem;
+        flex-direction: row;
+        border-right: none;
+        border-bottom: 1px solid var(--islide-line);
+    }
+
+    .islide-thumb {
+        width: 7rem;
+        flex: none;
+    }
+
+    .islide-overlay-question {
+        font-size: 1.15rem;
+    }
+
+    .islide-present {
+        height: auto;
+    }
+
+    .islide-transport-actions {
+        margin-left: 0;
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .islide-player-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .islide-submit {
+        width: 100%;
+    }
+
+    .islide-bar {
+        grid-template-columns: 1.6rem 1fr auto;
+    }
+
+    .islide-bar-track {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .mod-interactiveslide * {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+    }
+}
+
+.islide-award {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.6rem;
+    height: 1.9rem;
+    padding: 0 .55rem;
+    border: 1.5px solid var(--islide-award-line);
+    border-radius: 999px;
+    background: var(--islide-award-tint);
+    color: var(--islide-award-ink);
+    font-size: .8rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease,
+        border-color .15s ease, box-shadow .15s ease, transform .1s ease;
+}
+
+.islide-award:hover,
+.islide-award:focus-visible {
+    background: var(--islide-award-fill);
+    border-color: var(--islide-award-fill-line);
+    /* Everything inside goes white together: the plus, the number and the star. */
+    color: #ffffff;
+    /* White on gold is a thin contrast, so lift the glyphs off the fill. */
+    text-shadow: 0 1px 2px rgba(90, 60, 0, .55);
+    box-shadow: 0 2px 10px rgba(132, 90, 6, .45);
+}
+
+.islide-award:focus-visible {
+    outline: 2px solid var(--islide-award-fill-line);
+    outline-offset: 2px;
+}
+
+.islide-award:active {
+    transform: scale(.92);
+}
+
+.islide-board-row:has(.islide-award) {
+    grid-template-columns: 2.25rem 2rem 1fr auto auto auto;
+}
+
+/* ---------- Fixes from the first classroom test ---------- */
+
+/* Fullscreen is for the room, not for the presenter's own navigation: the
+ * filmstrip and the browser chrome only steal projector space. */
+.islide-present:fullscreen .islide-filmstrip,
+.islide-present:-webkit-full-screen .islide-filmstrip {
+    display: none;
+}
+
+.islide-present:fullscreen .islide-present-main {
+    padding: 0;
+    gap: 0;
+}
+
+.islide-present:fullscreen .islide-stage {
+    border-radius: 0;
+}
+
+.islide-present:fullscreen .islide-transport {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+}
+
+/* Shown on the presenter stage before a session exists, in place of an <img>
+ * with no source, which browsers draw as a broken image icon. */
+.islide-stage-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .6rem;
+    padding: 2rem;
+    text-align: center;
+    color: #cbd5e1;
+}
+
+.islide-stage-placeholder h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #f8fafc;
+}
+
+.islide-stage-placeholder p {
+    margin: 0;
+    max-width: 32rem;
+}
+
+.islide-stage-placeholder-icon {
+    font-size: 2.75rem;
+    opacity: .8;
+}
+
+/* Student screen: breathing room between the stacked panels, and a comfortable
+ * touch target on a phone. */
+.islide-player-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--islide-gap);
+}
+
+.islide-answer-form {
+    display: grid;
+    gap: .75rem;
+}
+
+.islide-wordinput,
+.islide-blankinput input {
+    min-height: 2.9rem;
+}
+
+.islide-choice {
+    min-height: 3.1rem;
+}
+
+/* The result the teacher pushes to phones is a summary, not the main event. */
+.islide-bars-compact .islide-bar-track {
+    height: 1.1rem;
+}
+
+.islide-result .islide-cloud-canvas {
+    min-height: 11rem;
+}
+
+.islide-result .islide-cloud-word {
+    /* On a phone the packed cloud is unreadable, so the renderer falls back to a
+     * list; this keeps any stragglers legible. */
+    color: var(--islide-ink);
+}
+
+@media (max-width: 600px) {
+    .islide-player {
+        gap: .75rem;
+    }
+
+    .islide-answer,
+    .islide-result,
+    .islide-board-panel {
+        padding: .9rem 1rem;
+        border-radius: var(--islide-radius-sm);
+    }
+
+    .islide-question {
+        font-size: 1.05rem;
+    }
+
+    .islide-board-row {
+        grid-template-columns: 2.1rem 1.9rem 1fr auto;
+        gap: .45rem;
+    }
+
+    .islide-board-streak {
+        display: none;
+    }
+}
+
+/* ---------- Projector typography ----------
+ *
+ * The presenter console is not read at desk distance: it is the thing on the
+ * wall that the back row is squinting at. Everything inside the overlay is sized
+ * against the viewport so it grows with the screen it lands on, instead of
+ * staying at the comfortable size of the laptop driving it.
+ */
+
+.islide-overlay {
+    padding: clamp(1rem, 2.2vw, 2.5rem);
+    gap: clamp(.75rem, 1.4vw, 1.5rem);
+}
+
+.islide-overlay-question {
+    font-size: clamp(1.4rem, 2.9vw, 3.2rem);
+    font-weight: 800;
+    line-height: 1.18;
+    letter-spacing: -.01em;
+}
+
+.islide-overlay-count {
+    padding: clamp(.3rem, .7vw, .6rem) clamp(.8rem, 1.4vw, 1.4rem);
+    font-size: clamp(1rem, 1.7vw, 2rem);
+}
+
+.islide-overlay .islide-timer-lg {
+    width: clamp(4rem, 7vw, 8rem);
+    height: clamp(4rem, 7vw, 8rem);
+}
+
+.islide-overlay .islide-timer-lg .islide-timer-value {
+    font-size: clamp(1.2rem, 2.1vw, 2.4rem);
+}
+
+.islide-overlay .islide-timer-track,
+.islide-overlay .islide-timer-fill {
+    stroke-width: 5;
+}
+
+/* Choice bars. */
+
+.islide-overlay-body .islide-bars {
+    gap: clamp(.5rem, 1.1vw, 1.1rem);
+}
+
+.islide-overlay-body .islide-bar {
+    grid-template-columns:
+        clamp(2.4rem, 3.4vw, 4rem)
+        minmax(8rem, 28vw)
+        1fr
+        auto;
+    gap: clamp(.6rem, 1.2vw, 1.4rem);
+}
+
+.islide-overlay-body .islide-bar-letter {
+    width: clamp(2.2rem, 3.2vw, 3.8rem);
+    height: clamp(2.2rem, 3.2vw, 3.8rem);
+    font-size: clamp(1rem, 1.7vw, 1.9rem);
+}
+
+.islide-overlay-body .islide-bar-text,
+.islide-overlay-body .islide-bar-count {
+    font-size: clamp(1.1rem, 2vw, 2.3rem);
+}
+
+.islide-overlay-body .islide-bar-count small {
+    font-size: .72em;
+}
+
+.islide-overlay-body .islide-bar-track {
+    height: clamp(1.6rem, 2.6vw, 3rem);
+}
+
+/* Fill in the blanks. */
+
+.islide-overlay-body .islide-blankresults {
+    gap: clamp(1rem, 2vw, 2.2rem);
+}
+
+.islide-overlay-body .islide-blankresult-label {
+    font-size: clamp(1.15rem, 2.1vw, 2.4rem);
+    font-weight: 700;
+}
+
+.islide-overlay-body .islide-blankresult-key {
+    font-size: clamp(1rem, 1.6vw, 1.8rem);
+}
+
+.islide-overlay-body .islide-chip {
+    padding: clamp(.3rem, .6vw, .6rem) clamp(.7rem, 1.2vw, 1.2rem);
+    font-size: clamp(1.05rem, 1.9vw, 2.1rem);
+    gap: .55em;
+}
+
+.islide-overlay-body .islide-chiplist {
+    gap: clamp(.4rem, .8vw, .8rem);
+}
+
+.islide-overlay-body .islide-empty-note {
+    font-size: clamp(1.1rem, 1.9vw, 2.1rem);
+}
+
+/* Word cloud fallback list, when the packer cannot fit the words. */
+
+.islide-overlay-body .islide-cloud-list li {
+    padding: clamp(.35rem, .7vw, .7rem) clamp(.7rem, 1.2vw, 1.2rem);
+    font-size: clamp(1.1rem, 2vw, 2.2rem);
+}
+
+/* Leaderboard on the wall. */
+
+.islide-overlay-board {
+    max-height: 46%;
+    padding: clamp(.6rem, 1.2vw, 1.2rem);
+}
+
+.islide-overlay-board .islide-board {
+    gap: clamp(.35rem, .7vw, .7rem);
+}
+
+.islide-overlay-board .islide-board-row:has(.islide-award) {
+    grid-template-columns:
+        clamp(2.6rem, 3.8vw, 4.4rem)
+        clamp(2.4rem, 3.4vw, 4rem)
+        1fr
+        auto
+        auto
+        auto;
+}
+
+.islide-overlay-board .islide-board-row {
+    grid-template-columns:
+        clamp(2.6rem, 3.8vw, 4.4rem)
+        clamp(2.4rem, 3.4vw, 4rem)
+        1fr
+        auto
+        auto;
+    padding: clamp(.4rem, .8vw, .9rem) clamp(.7rem, 1.2vw, 1.2rem);
+    font-size: clamp(1.1rem, 1.9vw, 2.2rem);
+}
+
+.islide-overlay-board .islide-board-rank {
+    width: clamp(2.3rem, 3.4vw, 4rem);
+    height: clamp(2.3rem, 3.4vw, 4rem);
+    font-size: clamp(1rem, 1.7vw, 2rem);
+}
+
+.islide-overlay-board .islide-board-medal {
+    font-size: clamp(1.2rem, 2vw, 2.3rem);
+}
+
+.islide-overlay-board .islide-board-avatar img {
+    width: clamp(2.2rem, 3.2vw, 3.8rem);
+    height: clamp(2.2rem, 3.2vw, 3.8rem);
+}
+
+.islide-overlay-board .islide-board-stars {
+    padding: .22em .7em;
+    font-size: 1em;
+}
+
+.islide-overlay-board .islide-award {
+    min-width: 3.4em;
+    height: 2em;
+    font-size: .72em;
+}
+
+/* The locked notice now carries the button that unlocks the question. */
+
+.islide-locked-note {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.islide-locked-note p {
+    margin: 0;
+    flex: 1 1 20rem;
+}
+
+/* ---------- The interaction surfaces are always light ----------
+ *
+ * These panels sit over a slide image or carry the question the whole room is
+ * reading, so they do not follow the site's light/dark switch: they are a fixed,
+ * fully opaque light card. Chasing the theme here produced white text on a white
+ * page once already, and a translucent panel let the slide bleed through the
+ * words.
+ *
+ * Redefining the tokens on the panel is enough for every component inside it,
+ * because they all draw from the same set.
+ */
+.mod-interactiveslide .islide-overlay,
+.mod-interactiveslide .islide-answer,
+.mod-interactiveslide .islide-result,
+.mod-interactiveslide .islide-board-panel,
+.mod-interactiveslide .islide-waiting {
+    --islide-ink: #0f172a;
+    --islide-muted: #475569;
+    --islide-surface: #ffffff;
+    --islide-canvas: #e9eef7;
+    --islide-line: #cbd5e1;
+    --islide-accent-soft: rgba(79, 70, 229, .13);
+    --islide-success-soft: rgba(21, 128, 61, .15);
+    --islide-danger-soft: rgba(185, 28, 28, .13);
+    --islide-star-soft: rgba(180, 83, 9, .16);
+
+    color: var(--islide-ink);
+    color-scheme: light;
+}
+
+/* Inherited colour loses to any rule that matches an element directly, and
+ * Moodle themes colour h1-h6, p and small. Those are named here so they cannot
+ * take the page's own heading colour onto this panel.
+ *
+ * `span` is deliberately absent. Listing it swept up every accent inside the
+ * panel as well: the gold stars, the muted author line, and the label inside the
+ * star button, which stayed dark on its gold fill because a rule matching the
+ * span beats a colour inherited from the button. Themes do not colour bare
+ * spans, so leaving them to inherit is both safe and correct. */
+.mod-interactiveslide .islide-overlay h1,
+.mod-interactiveslide .islide-overlay h2,
+.mod-interactiveslide .islide-overlay h3,
+.mod-interactiveslide .islide-overlay p,
+.mod-interactiveslide .islide-overlay li,
+.mod-interactiveslide .islide-answer h1,
+.mod-interactiveslide .islide-answer h2,
+.mod-interactiveslide .islide-answer h3,
+.mod-interactiveslide .islide-answer label,
+.mod-interactiveslide .islide-result h1,
+.mod-interactiveslide .islide-result h2,
+.mod-interactiveslide .islide-result h3,
+.mod-interactiveslide .islide-result li,
+.mod-interactiveslide .islide-board-panel li,
+.mod-interactiveslide .islide-waiting h2,
+.mod-interactiveslide .islide-waiting p {
+    color: var(--islide-ink);
+}
+
+.mod-interactiveslide .islide-overlay small,
+.mod-interactiveslide .islide-answer small,
+.mod-interactiveslide .islide-result small,
+.mod-interactiveslide .islide-waiting p {
+    color: var(--islide-muted);
+}
+
+/* These carry their own meaning and must survive the blanket rule above. */
+.mod-interactiveslide .islide-overlay .islide-bar-letter,
+.mod-interactiveslide .islide-answer .islide-choice-letter {
+    color: var(--islide-accent-strong);
+}
+
+.mod-interactiveslide .islide-overlay .islide-bar-correct .islide-bar-letter {
+    color: #ffffff;
+}
+
+.mod-interactiveslide .islide-answer .islide-choice:has(input:checked) .islide-choice-letter {
+    color: #ffffff;
+}
+
+.mod-interactiveslide .islide-overlay .islide-blankresult-key {
+    color: #15803d;
+}
+
+.mod-interactiveslide .islide-overlay .islide-board-rank,
+.mod-interactiveslide .islide-board-panel .islide-board-rank {
+    color: var(--islide-muted);
+}
+
+.mod-interactiveslide .islide-overlay .islide-rank-1 .islide-board-rank,
+.mod-interactiveslide .islide-overlay .islide-rank-2 .islide-board-rank,
+.mod-interactiveslide .islide-overlay .islide-rank-3 .islide-board-rank,
+.mod-interactiveslide .islide-board-panel .islide-rank-1 .islide-board-rank,
+.mod-interactiveslide .islide-board-panel .islide-rank-2 .islide-board-rank,
+.mod-interactiveslide .islide-board-panel .islide-rank-3 .islide-board-rank {
+    color: #1b1300;
+}
+
+.mod-interactiveslide .islide-answer-status[data-tone="success"] {
+    color: #15803d;
+}
+
+.mod-interactiveslide .islide-answer-status[data-tone="error"] {
+    color: #b91c1c;
+}
+
+.mod-interactiveslide .islide-overlay .islide-award {
+    color: var(--islide-award-ink);
+    border-color: var(--islide-award-line);
+    background: var(--islide-award-tint);
+}
+
+.mod-interactiveslide .islide-overlay .islide-award:hover,
+.mod-interactiveslide .islide-overlay .islide-award:focus-visible {
+    background: var(--islide-award-fill);
+    border-color: var(--islide-award-fill-line);
+    color: #ffffff;
+}
+
+/* Form controls inside the light panels: Moodle styles input and textarea
+ * directly, so state the colours here too. */
+.mod-interactiveslide .islide-answer input[type="text"],
+.mod-interactiveslide .islide-answer textarea {
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    border-color: var(--islide-line);
+}
+
+.mod-interactiveslide .islide-answer input[type="text"]::placeholder {
+    color: #94a3b8;
+    opacity: 1;
+}
+
+.mod-interactiveslide .islide-answer .islide-choice {
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+}
+
+/* The word cloud picks its own hues; keep them legible on the light panel. */
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-0 { color: #4338ca; }
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-1 { color: #0e7490; }
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-2 { color: #be185d; }
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-3 { color: #c2410c; }
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-4 { color: #15803d; }
+.mod-interactiveslide .islide-overlay .islide-cloud-tone-5 { color: #6d28d9; }
+
+/* The close and hide controls sit on the light panel now. */
+.mod-interactiveslide .islide-overlay .islide-icon-btn {
+    background: var(--islide-surface);
+    border-color: var(--islide-line);
+    color: var(--islide-ink);
+}
+
+.mod-interactiveslide .islide-overlay .islide-overlay-count {
+    background: var(--islide-canvas);
+    color: var(--islide-ink);
+}
+
+/* A checkbox label can carry a line of explanation under it. */
+.islide-check-text small {
+    display: block;
+    margin-top: .15rem;
+    font-size: .8rem;
+    line-height: 1.35;
+    color: var(--islide-muted);
+}
+
+/* ---------- Open ended questions ---------- */
+
+.islide-openended {
+    display: grid;
+    gap: .35rem;
+}
+
+.islide-openendedinput {
+    width: 100%;
+    min-height: 7rem;
+    padding: .75rem .85rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    font-size: 1rem;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.islide-openendedinput:focus {
+    outline: none;
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+.islide-charcount {
+    justify-self: end;
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--islide-muted);
+}
+
+.islide-charcount[data-tone="warn"] {
+    color: var(--islide-danger);
+    font-weight: 600;
+}
+
+/* The wall of answers. Cards flow into as many columns as fit, so a handful of
+ * short replies do not stretch across the whole projector. */
+.islide-wall {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: .75rem;
+    align-content: start;
+}
+
+.islide-wall-card {
+    position: relative;
+    margin: 0;
+    padding: .8rem .95rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+    border: 1px solid var(--islide-line);
+    animation: islide-fadein .3s ease both;
+}
+
+.islide-wall-card:has(.islide-wall-count) blockquote {
+    padding-right: 2.4rem;
+}
+
+.islide-wall-card blockquote {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 1rem;
+    line-height: 1.45;
+    color: var(--islide-ink);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.islide-wall-count {
+    position: absolute;
+    top: .4rem;
+    right: .5rem;
+    padding: .05rem .45rem;
+    border-radius: 999px;
+    background: var(--islide-accent-soft);
+    color: var(--islide-ink);
+    font-size: .75rem;
+    font-weight: 700;
+}
+
+/* ---------- The question with nothing answered yet ---------- */
+
+.islide-promptlist {
+    list-style: none;
+    margin: 0 0 .75rem;
+    padding: 0;
+    display: grid;
+    gap: .5rem;
+}
+
+.islide-promptlist-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: .75rem;
+    padding: .5rem .75rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+    border: 1px solid var(--islide-line);
+}
+
+.islide-promptlist-index {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: 50%;
+    background: var(--islide-accent-soft);
+    color: var(--islide-accent-strong);
+    font-weight: 700;
+}
+
+.islide-promptlist-stars {
+    font-weight: 700;
+    color: var(--islide-star);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Projector sizing for the two new pieces. */
+
+.islide-overlay-body .islide-wall {
+    grid-template-columns: repeat(auto-fill, minmax(clamp(15rem, 22vw, 26rem), 1fr));
+    gap: clamp(.6rem, 1.1vw, 1.2rem);
+}
+
+.islide-overlay-body .islide-wall-card {
+    padding: clamp(.7rem, 1.2vw, 1.3rem) clamp(.85rem, 1.4vw, 1.5rem);
+}
+
+.islide-overlay-body .islide-wall-card blockquote {
+    font-size: clamp(1.05rem, 1.7vw, 1.9rem);
+}
+
+.islide-overlay-body .islide-wall-count {
+    font-size: clamp(.75rem, 1.1vw, 1.2rem);
+}
+
+.islide-overlay-body .islide-promptlist {
+    gap: clamp(.5rem, 1.1vw, 1.1rem);
+    margin-bottom: clamp(.75rem, 1.4vw, 1.5rem);
+}
+
+.islide-overlay-body .islide-promptlist-item {
+    padding: clamp(.5rem, 1vw, 1rem) clamp(.75rem, 1.3vw, 1.4rem);
+    gap: clamp(.6rem, 1.2vw, 1.4rem);
+}
+
+.islide-overlay-body .islide-promptlist-index {
+    width: clamp(2.2rem, 3.2vw, 3.8rem);
+    height: clamp(2.2rem, 3.2vw, 3.8rem);
+    font-size: clamp(1rem, 1.7vw, 1.9rem);
+}
+
+.islide-overlay-body .islide-promptlist-stars {
+    font-size: clamp(1rem, 1.7vw, 1.9rem);
+}
+
+/* The wall is the interaction surface on a student's phone too. */
+.mod-interactiveslide .islide-result .islide-wall-card blockquote,
+.mod-interactiveslide .islide-overlay .islide-wall-card blockquote {
+    color: var(--islide-ink);
+}
+
+/* Projector text is bounded by the overlay's own box, not just the viewport.
+ *
+ * Sizing on viewport width alone is fine for a heading, but a question with
+ * eight options or twenty answers has to fit the height of the overlay too, and
+ * a 16:9 projector is much wider than it is tall. Measuring against the overlay
+ * body as a container means the list shrinks to fit whatever room it actually
+ * has, instead of overflowing into a scroll nobody can reach from the back of
+ * the room. A browser without container queries drops these declarations and
+ * keeps the viewport-based sizes declared earlier.
+ */
+.islide-overlay-body {
+    container-type: size;
+}
+
+.islide-overlay-question {
+    font-size: clamp(1.4rem, min(2.9vw, 5.4vh), 3.2rem);
+}
+
+.islide-overlay-body .islide-bar-text,
+.islide-overlay-body .islide-bar-count {
+    font-size: clamp(.85rem, min(4.4cqw, 7cqh), 2.3rem);
+}
+
+.islide-overlay-body .islide-bar-letter,
+.islide-overlay-body .islide-promptlist-index {
+    width: clamp(1.6rem, min(6.5cqw, 10cqh), 3.8rem);
+    height: clamp(1.6rem, min(6.5cqw, 10cqh), 3.8rem);
+    font-size: clamp(.8rem, min(3.6cqw, 5.6cqh), 1.9rem);
+}
+
+.islide-overlay-body .islide-bar-track {
+    height: clamp(1.1rem, min(5.5cqw, 8.5cqh), 3rem);
+}
+
+.islide-overlay-body .islide-promptlist-item {
+    padding: clamp(.3rem, 2.6cqh, 1rem) clamp(.6rem, 2.6cqw, 1.4rem);
+}
+
+.islide-overlay-body .islide-promptlist,
+.islide-overlay-body .islide-bars {
+    gap: clamp(.3rem, 2cqh, 1.1rem);
+}
+
+.islide-overlay-body .islide-promptlist-stars {
+    font-size: clamp(.8rem, min(3.6cqw, 5.6cqh), 1.9rem);
+}
+
+.islide-overlay-body .islide-chip {
+    font-size: clamp(.85rem, min(4cqw, 6.4cqh), 2.1rem);
+}
+
+.islide-overlay-body .islide-blankresult-label {
+    font-size: clamp(.9rem, min(4.6cqw, 7cqh), 2.4rem);
+}
+
+.islide-overlay-body .islide-wall-card blockquote {
+    font-size: clamp(.85rem, min(3.6cqw, 5.6cqh), 1.9rem);
+}
+
+/* Shown when the page was loaded before the plugin was updated and does not
+ * know how to draw the question the server just sent. */
+.islide-stale {
+    display: grid;
+    justify-items: start;
+    gap: .6rem;
+    padding: .9rem 1rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-danger-soft);
+    border: 1px solid var(--islide-danger);
+}
+
+.islide-stale p {
+    margin: 0;
+    color: var(--islide-ink);
+}
+
+/* An open ended card credits its author and offers them a star. */
+.islide-wall-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    margin-top: .6rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--islide-line);
+}
+
+.islide-wall-author {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--islide-muted);
+}
+
+.islide-wall-foot .islide-award {
+    flex: none;
+}
+
+/* A card with a footer has its repeat badge replaced by that footer, so the
+ * blockquote no longer needs to leave room for one. */
+.islide-wall-card:has(.islide-wall-foot) blockquote {
+    padding-right: 0;
+}
+
+.islide-overlay-body .islide-wall-foot {
+    margin-top: clamp(.4rem, 1.2cqh, .9rem);
+    padding-top: clamp(.35rem, 1cqh, .8rem);
+}
+
+.islide-overlay-body .islide-wall-author {
+    font-size: clamp(.75rem, min(2.8cqw, 4.4cqh), 1.4rem);
+}
+
+.islide-overlay-body .islide-wall-foot .islide-award {
+    min-width: clamp(2.6rem, 9cqw, 4.4rem);
+    height: clamp(1.7rem, 6cqh, 2.6rem);
+    font-size: clamp(.7rem, min(2.6cqw, 4cqh), 1.2rem);
+}
+
+/* Text for screen readers only.
+ *
+ * The plugin used Bootstrap's .sr-only, which Bootstrap 5 renamed to
+ * .visually-hidden. On a theme that no longer ships the old alias the label
+ * inside every icon button became visible, so the plugin now carries its own.
+ */
+.islide-sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* The star button owns everything inside it.
+ *
+ * Its label is a span, so any rule that colours spans in this area would beat
+ * the colour the button sets for itself and leave a dark label on the gold fill.
+ * Stated at a specificity nothing in the panel can outrank.
+ */
+.mod-interactiveslide .islide-award,
+.mod-interactiveslide .islide-award > * {
+    color: var(--islide-award-ink);
+}
+
+.mod-interactiveslide .islide-award:hover,
+.mod-interactiveslide .islide-award:hover > *,
+.mod-interactiveslide .islide-award:focus-visible,
+.mod-interactiveslide .islide-award:focus-visible > * {
+    color: #ffffff;
+}
+
+/* The overview sheet carries one column per slide, so it is routinely wider than
+ * the page. It scrolls on its own rather than pushing the page sideways, and the
+ * participant column stays put so a name is always attached to its numbers. */
+.islide-report-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+}
+
+.islide-report-scroll .islide-report {
+    margin-bottom: 0;
+}
+
+.islide-report th:first-child,
+.islide-report td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bs-body-bg, #ffffff);
+}
+
+.islide-report th {
+    vertical-align: bottom;
+}

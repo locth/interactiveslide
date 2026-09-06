@@ -1,0 +1,154 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_interactiveslide/presenter
+
+    The presenter console: filmstrip, stage, overlay and transport controls.
+
+    Example context (json):
+    {
+        "cmid": 12,
+        "name": "Chuong 3",
+        "viewurl": "#"
+    }
+}}
+<div class="islide-present" data-region="interactiveslide-present" data-cmid="{{cmid}}">
+
+    <header class="islide-present-bar">
+        <div class="islide-present-left">
+            <a class="islide-icon-btn" href="{{viewurl}}" title="{{#str}}backtoactivity, mod_interactiveslide{{/str}}">
+                <span aria-hidden="true">&#8592;</span>
+                <span class="islide-sr-only">{{#str}}backtoactivity, mod_interactiveslide{{/str}}</span>
+            </a>
+            <span class="islide-present-name">{{name}}</span>
+        </div>
+
+        <div class="islide-present-center" data-region="sessioninfo" hidden>
+            <span class="islide-live-dot" aria-hidden="true"></span>
+            <span class="islide-present-code" data-region="joincode"></span>
+            <span class="islide-present-online" data-region="onlinecount"></span>
+        </div>
+
+        <div class="islide-present-right">
+            <button type="button" class="btn btn-primary" data-action="startsession">
+                {{#str}}startsession, mod_interactiveslide{{/str}}
+            </button>
+            <button type="button" class="btn btn-outline-danger" data-action="endsession" hidden>
+                {{#str}}endsession, mod_interactiveslide{{/str}}
+            </button>
+            <button type="button" class="islide-icon-btn" data-action="fullscreen"
+                    title="{{#str}}fullscreen, mod_interactiveslide{{/str}}">
+                <span aria-hidden="true">&#9974;</span>
+                <span class="islide-sr-only">{{#str}}fullscreen, mod_interactiveslide{{/str}}</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="islide-present-body">
+
+        <aside class="islide-filmstrip" data-region="filmstrip" aria-label="{{#str}}slides, mod_interactiveslide{{/str}}"></aside>
+
+        <main class="islide-present-main">
+            <div class="islide-stage islide-stage-present" data-region="stage">
+                <figure class="islide-stage-image" hidden>
+                    <img data-region="slideimage" src="" alt="{{#str}}currentslide, mod_interactiveslide{{/str}}">
+                </figure>
+
+                <div class="islide-stage-placeholder" data-region="stageplaceholder">
+                    <span class="islide-stage-placeholder-icon" aria-hidden="true">&#9654;</span>
+                    <h2 data-region="placeholder-title">{{#str}}nosessionyet, mod_interactiveslide{{/str}}</h2>
+                    <p data-region="placeholder-text">{{#str}}nosessionyet_desc, mod_interactiveslide{{/str}}</p>
+                </div>
+
+                <button type="button" class="islide-start-badge" data-action="openround" hidden>
+                    <span class="islide-start-badge-icon" aria-hidden="true">&#9654;</span>
+                    <span class="islide-start-badge-label">{{#str}}startinteraction, mod_interactiveslide{{/str}}</span>
+                </button>
+
+                <div class="islide-overlay" data-region="overlay" hidden>
+                    <div class="islide-overlay-head">
+                        <h2 class="islide-overlay-question" data-region="overlay-question"></h2>
+                        <div class="islide-overlay-meta">
+                            <span class="islide-overlay-count" data-region="overlay-count"></span>
+                            <div class="islide-timer islide-timer-lg" data-region="timer" hidden>
+                                <svg class="islide-timer-ring" viewBox="0 0 44 44" aria-hidden="true">
+                                    <circle class="islide-timer-track" cx="22" cy="22" r="19"></circle>
+                                    <circle class="islide-timer-fill" cx="22" cy="22" r="19" data-region="timer-arc"></circle>
+                                </svg>
+                                <span class="islide-timer-value" data-region="timer-value">0</span>
+                            </div>
+                            <button type="button" class="islide-icon-btn" data-action="closeoverlay"
+                                    title="{{#str}}hideoverlay, mod_interactiveslide{{/str}}">
+                                <span aria-hidden="true">&#10005;</span>
+                                <span class="islide-sr-only">{{#str}}hideoverlay, mod_interactiveslide{{/str}}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="islide-overlay-body" data-region="overlay-body"></div>
+
+                    <div class="islide-overlay-board" data-region="overlay-board" hidden></div>
+                </div>
+            </div>
+
+            <div class="islide-transport">
+                <button type="button" class="islide-icon-btn" data-action="prev"
+                        title="{{#str}}previousslide, mod_interactiveslide{{/str}}">
+                    <span aria-hidden="true">&#8249;</span>
+                    <span class="islide-sr-only">{{#str}}previousslide, mod_interactiveslide{{/str}}</span>
+                </button>
+
+                <span class="islide-transport-position" data-region="slideposition">0 / 0</span>
+
+                <button type="button" class="islide-icon-btn" data-action="next"
+                        title="{{#str}}nextslide, mod_interactiveslide{{/str}}">
+                    <span aria-hidden="true">&#8250;</span>
+                    <span class="islide-sr-only">{{#str}}nextslide, mod_interactiveslide{{/str}}</span>
+                </button>
+
+                <div class="islide-transport-actions" data-region="roundactions">
+                    <button type="button" class="btn btn-primary" data-action="openround" hidden>
+                        {{#str}}startinteraction, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="closeround" hidden>
+                        {{#str}}stopcollecting, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-success" data-action="reveal" hidden>
+                        {{#str}}revealanswer, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="hide" hidden>
+                        {{#str}}hideanswer, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="showresult" hidden>
+                        {{#str}}pushresult, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-action="hideresult" hidden>
+                        {{#str}}hideresult, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" data-action="reset" hidden>
+                        {{#str}}resetround, mod_interactiveslide{{/str}}
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" data-action="toggleboard">
+                        {{#str}}leaderboard, mod_interactiveslide{{/str}}
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="islide-toast" data-region="toast" role="status" aria-live="polite" hidden></div>
+</div>

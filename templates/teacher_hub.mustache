@@ -1,0 +1,130 @@
+{{!
+    This file is part of Moodle - https://moodle.org/
+
+    Moodle is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Moodle is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+}}
+{{!
+    @template mod_interactiveslide/teacher_hub
+
+    The staff landing page for a deck.
+
+    Context variables required for this template:
+    * cmid - course module id
+    * name - activity name
+    * slidecount - number of slides in the deck
+    * interactioncount - number of slides carrying an interaction
+    * presenturl - link to the presenter console
+
+    Example context (json):
+    {
+        "cmid": 12,
+        "name": "Chuong 3",
+        "slidecount": 24,
+        "interactioncount": 6,
+        "maxstars": 14,
+        "hasslides": true,
+        "canmanage": true,
+        "canreport": true,
+        "editurl": "#",
+        "presenturl": "#",
+        "reporturl": "#",
+        "hassession": false,
+        "joincode": "",
+        "sessionname": "",
+        "participantcount": 0,
+        "participantstext": "",
+        "hasleaderboard": false,
+        "leaderboard": []
+    }
+}}
+<div class="islide-hub" data-region="interactiveslide-hub" data-cmid="{{cmid}}">
+
+    {{#hasintro}}
+        <div class="islide-card islide-intro">{{{intro}}}</div>
+    {{/hasintro}}
+
+    {{#hassession}}
+        <div class="islide-live-banner" role="status">
+            <span class="islide-live-dot" aria-hidden="true"></span>
+            <div class="islide-live-text">
+                <strong>{{#str}}sessionlive, mod_interactiveslide{{/str}}</strong>
+                <span>{{sessionname}}</span>
+            </div>
+            <div class="islide-live-code">
+                <span class="islide-live-code-label">{{#str}}joincode, mod_interactiveslide{{/str}}</span>
+                <span class="islide-live-code-value">{{joincode}}</span>
+            </div>
+            <div class="islide-live-count">{{participantstext}}</div>
+            <a class="btn btn-primary" href="{{presenturl}}">{{#str}}resumepresenting, mod_interactiveslide{{/str}}</a>
+        </div>
+    {{/hassession}}
+
+    <div class="islide-stats">
+        <div class="islide-stat">
+            <span class="islide-stat-value">{{slidecount}}</span>
+            <span class="islide-stat-label">{{#str}}slides, mod_interactiveslide{{/str}}</span>
+        </div>
+        <div class="islide-stat">
+            <span class="islide-stat-value">{{interactioncount}}</span>
+            <span class="islide-stat-label">{{#str}}interactions, mod_interactiveslide{{/str}}</span>
+        </div>
+        <div class="islide-stat islide-stat-accent">
+            <span class="islide-stat-value">{{maxstars}}</span>
+            <span class="islide-stat-label">{{#str}}maxstarsperrun, mod_interactiveslide{{/str}}</span>
+        </div>
+    </div>
+
+    <div class="islide-actions">
+        {{#hasslides}}
+            <a class="btn btn-primary btn-lg islide-action-present" href="{{presenturl}}">
+                {{#str}}present, mod_interactiveslide{{/str}}
+            </a>
+        {{/hasslides}}
+        {{#canmanage}}
+            <a class="btn btn-outline-primary btn-lg" href="{{editurl}}">
+                {{#hasslides}}{{#str}}editslides, mod_interactiveslide{{/str}}{{/hasslides}}
+                {{^hasslides}}{{#str}}importpdf, mod_interactiveslide{{/str}}{{/hasslides}}
+            </a>
+        {{/canmanage}}
+        {{#canreport}}
+            <a class="btn btn-outline-secondary btn-lg" href="{{reporturl}}">
+                {{#str}}reports, mod_interactiveslide{{/str}}
+            </a>
+        {{/canreport}}
+    </div>
+
+    {{^hasslides}}
+        <div class="islide-empty">
+            <div class="islide-empty-icon" aria-hidden="true">&#128196;</div>
+            <h3>{{#str}}noslidesyet, mod_interactiveslide{{/str}}</h3>
+            <p>{{#str}}noslidesyet_desc, mod_interactiveslide{{/str}}</p>
+        </div>
+    {{/hasslides}}
+
+    {{#hasleaderboard}}
+        <div class="islide-card">
+            <h3 class="islide-card-title">{{#str}}overallleaderboard, mod_interactiveslide{{/str}}</h3>
+            <ol class="islide-board">
+                {{#leaderboard}}
+                    <li class="islide-board-row islide-rank-{{rank}}">
+                        <span class="islide-board-rank">{{rank}}</span>
+                        <span class="islide-board-avatar">{{{pictureurl}}}</span>
+                        <span class="islide-board-name">{{fullname}}</span>
+                        <span class="islide-board-stars">{{stars}}<span class="islide-star" aria-hidden="true">&#9733;</span></span>
+                    </li>
+                {{/leaderboard}}
+            </ol>
+        </div>
+    {{/hasleaderboard}}
+</div>

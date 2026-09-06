@@ -1,0 +1,720 @@
+// This file is part of Moodle - https://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <https://www.gnu.org/licenses/>.
+
+/**
+ * The presenter console.
+ *
+ * Every control here is a request to the server, and the screen only changes
+ * once the server has confirmed it. That keeps the projector and the room's
+ * phones showing the same thing even on a flaky lecture hall network.
+ *
+ * @module     mod_interactiveslide/presenter
+ * @copyright  2026 Interactive Slide contributors
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+define([
+    'core/str',
+    'core/notification',
+    'mod_interactiveslide/api',
+    'mod_interactiveslide/poller',
+    'mod_interactiveslide/render',
+    'mod_interactiveslide/util'
+], function(Str, Notification, Api, Poller, Render, Util) {
+
+    var STRING_KEYS = [
+        'startsession', 'endsession', 'confirmendsession', 'confirmendsession_desc',
+        'confirmreset', 'confirmreset_desc', 'responsesreceived', 'participantsonline',
+        'nosessionyet', 'nosessionyet_desc', 'noslidesyet', 'online', 'offline', 'connecting',
+        'nowordsyet', 'noanswersyet', 'noparticipantsyet', 'correctanswer', 'blank',
+        'beststreak', 'leaderboard', 'stars', 'sessionstarted', 'sessionended',
+        'roundopened', 'roundclosedtoast', 'answerrevealed', 'awardstar', 'awardreason', 'starawarded',
+        'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers'
+    ];
+
+    /**
+     * Boot the presenter console.
+     *
+     * @param {Object} config cmid, pollinterval, canaward, viewurl
+     * @return {void}
+     */
+    var init = function(config) {
+        var root = document.querySelector('[data-region="interactiveslide-present"]');
+        if (!root) {
+            return;
+        }
+
+        Str.get_strings(STRING_KEYS.map(function(key) {
+            return {key: key, component: 'mod_interactiveslide'};
+        })).then(function(resolved) {
+            var strings = {};
+            STRING_KEYS.forEach(function(key, index) {
+                strings[key] = resolved[index];
+            });
+            start(root, config, strings);
+            return strings;
+        }).catch(Notification.exception);
+    };
+
+    /**
+     * Wire the console up.
+     *
+     * @param {Element} root
+     * @param {Object} config
+     * @param {Object} strings
+     * @return {void}
+     */
+    var start = function(root, config, strings) {
+        var view = {
+            root: root,
+            cmid: config.cmid,
+            strings: strings,
+            deck: [],
+            state: null,
+            timerHandle: null,
+            deadline: null,
+            overlayDismissed: false,
+            boardVisible: false,
+            revealedRound: 0,
+            expiredRound: 0,
+            canAward: !!config.canaward,
+            busy: false
+        };
+
+        view.poller = Poller.create({
+            cmid: config.cmid,
+            interval: config.pollinterval || 2000,
+            onState: function(state) {
+                apply(view, state);
+            },
+            onConnection: function(status) {
+                root.dataset.connection = status;
+            }
+        });
+
+        loadDeck(view);
+        bindControls(view);
+        bindKeyboard(view);
+
+        view.poller.start();
+    };
+
+    /**
+     * Fetch the deck and build the filmstrip.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var loadDeck = function(view) {
+        Api.getDeck(view.cmid).then(function(response) {
+            var deck = JSON.parse(response.deck);
+            view.deck = deck.slides || [];
+            renderFilmstrip(view);
+            return deck;
+        }).catch(Notification.exception);
+    };
+
+    /**
+     * Draw the slide thumbnails.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var renderFilmstrip = function(view) {
+        var strip = Util.region(view.root, 'filmstrip');
+        if (!strip) {
+            return;
+        }
+
+        if (!view.deck.length) {
+            strip.innerHTML = '';
+            strip.appendChild(Render.emptyNote(view.strings.noslidesyet));
+            return;
+        }
+
+        var html = '';
+        view.deck.forEach(function(slide) {
+            html += '<button type="button" class="islide-thumb" data-slideid="' + Number(slide.id) + '">' +
+                '<span class="islide-thumb-index">' + (slide.index + 1) + '</span>' +
+                '<img src="' + Util.escape(slide.imageurl) + '" alt="" loading="lazy">' +
+                (slide.interaction
+                    ? '<span class="islide-thumb-badge islide-thumb-' + Util.escape(slide.interaction.qtype) +
+                        '" aria-hidden="true"></span>'
+                    : '') +
+                '</button>';
+        });
+        strip.innerHTML = html;
+
+        strip.addEventListener('click', function(event) {
+            var thumb = event.target.closest('.islide-thumb');
+            if (thumb) {
+                act(view, function() {
+                    return Api.setSlide(view.cmid, parseInt(thumb.dataset.slideid, 10), 0);
+                });
+            }
+        });
+    };
+
+    /**
+     * Hook up every button in the console.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindControls = function(view) {
+        var on = function(action, handler) {
+            Util.actions(view.root, action).forEach(function(button) {
+                button.addEventListener('click', handler);
+            });
+        };
+
+        on('startsession', function() {
+            act(view, function() {
+                return Api.startSession(view.cmid, '');
+            }, view.strings.sessionstarted);
+        });
+
+        on('endsession', function() {
+            Notification.saveCancelPromise(
+                view.strings.confirmendsession,
+                view.strings.confirmendsession_desc,
+                view.strings.endsession
+            ).then(function() {
+                return act(view, function() {
+                    return Api.endSession(view.cmid);
+                }, view.strings.sessionended);
+            }).catch(function() {
+                return null;
+            });
+        });
+
+        on('prev', function() {
+            act(view, function() {
+                return Api.setSlide(view.cmid, 0, -1);
+            });
+        });
+
+        on('next', function() {
+            act(view, function() {
+                return Api.setSlide(view.cmid, 0, 1);
+            });
+        });
+
+        on('openround', function() {
+            view.overlayDismissed = false;
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'open');
+            }, view.strings.roundopened);
+        });
+
+        on('closeround', function() {
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'close');
+            }, view.strings.roundclosedtoast);
+        });
+
+        on('reveal', function() {
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'reveal');
+            }, view.strings.answerrevealed);
+        });
+
+        on('hide', function() {
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'hide');
+            });
+        });
+
+        on('showresult', function() {
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'showresult');
+            });
+        });
+
+        on('hideresult', function() {
+            act(view, function() {
+                return Api.controlRound(view.cmid, 'hideresult');
+            });
+        });
+
+        on('reset', function() {
+            Notification.saveCancelPromise(
+                view.strings.confirmreset,
+                view.strings.confirmreset_desc,
+                view.strings.confirmreset
+            ).then(function() {
+                return act(view, function() {
+                    return Api.controlRound(view.cmid, 'reset');
+                });
+            }).catch(function() {
+                return null;
+            });
+        });
+
+        on('closeoverlay', function() {
+            view.overlayDismissed = true;
+            Util.toggle(Util.region(view.root, 'overlay'), false);
+        });
+
+        on('toggleboard', function() {
+            // One explicit flag, so turning the board off keeps it off. It used
+            // to be recomputed from "has the answer been revealed", which put it
+            // straight back on the next poll.
+            view.boardVisible = !view.boardVisible;
+            if (view.boardVisible) {
+                view.overlayDismissed = false;
+            }
+            if (view.state) {
+                apply(view, view.state);
+            }
+        });
+
+        // Star buttons appear on the leaderboard and on each open ended answer,
+        // so one delegated handler covers the whole overlay.
+        var awardFrom = function(region) {
+            var node = Util.region(view.root, region);
+            if (!node) {
+                return;
+            }
+            node.addEventListener('click', function(event) {
+                var button = event.target.closest('[data-award-userid]');
+                if (!button) {
+                    return;
+                }
+                var userid = parseInt(button.dataset.awardUserid, 10);
+                act(view, function() {
+                    return Api.awardStars(view.cmid, userid, 1, view.strings.awardreason);
+                }, view.strings.starawarded);
+            });
+        };
+
+        awardFrom('overlay-board');
+        awardFrom('overlay-body');
+
+        on('fullscreen', function() {
+            toggleFullscreen(view);
+        });
+    };
+
+    /**
+     * Keyboard transport, so the presenter can drive from a clicker.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindKeyboard = function(view) {
+        document.addEventListener('keydown', function(event) {
+            if (event.target.matches('input, textarea, select')) {
+                return;
+            }
+
+            switch (event.key) {
+                case 'ArrowRight':
+                case 'PageDown':
+                    event.preventDefault();
+                    act(view, function() {
+                        return Api.setSlide(view.cmid, 0, 1);
+                    });
+                    break;
+
+                case 'ArrowLeft':
+                case 'PageUp':
+                    event.preventDefault();
+                    act(view, function() {
+                        return Api.setSlide(view.cmid, 0, -1);
+                    });
+                    break;
+
+                case ' ':
+                    if (view.state && view.state.slide && view.state.slide.hasinteraction) {
+                        event.preventDefault();
+                        var action = (view.state.round && view.state.round.status === 'open')
+                            ? 'close' : 'open';
+                        view.overlayDismissed = false;
+                        act(view, function() {
+                            return Api.controlRound(view.cmid, action);
+                        });
+                    }
+                    break;
+
+                case 'Escape':
+                    view.overlayDismissed = true;
+                    Util.toggle(Util.region(view.root, 'overlay'), false);
+                    break;
+
+                case 'f':
+                case 'F':
+                    toggleFullscreen(view);
+                    break;
+            }
+        });
+    };
+
+    /**
+     * Run one control action, adopting the state it returns.
+     *
+     * @param {Object} view
+     * @param {Function} runner returns the API promise
+     * @param {String} [message] toast to show on success
+     * @return {Promise}
+     */
+    var act = function(view, runner, message) {
+        if (view.busy) {
+            return Promise.resolve();
+        }
+        view.busy = true;
+
+        return runner().then(function(response) {
+            view.busy = false;
+            view.poller.adopt(Api.unwrap(response));
+            if (message) {
+                Util.toast(view.root, message, 'success');
+            }
+            return response;
+        }).catch(function(error) {
+            view.busy = false;
+            Util.toast(view.root, error.message || String(error), 'error');
+            view.poller.refresh();
+        });
+    };
+
+    /**
+     * Apply a state document to the console.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var apply = function(view, state) {
+        var previousRound = view.state && view.state.round ? view.state.round.id : 0;
+        view.state = state;
+
+        var startButton = Util.actions(view.root, 'startsession')[0];
+        var endButton = Util.actions(view.root, 'endsession')[0];
+        var sessionInfo = Util.region(view.root, 'sessioninfo');
+
+        if (startButton) {
+            startButton.hidden = state.hassession;
+        }
+        if (endButton) {
+            endButton.hidden = !state.hassession;
+        }
+        Util.toggle(sessionInfo, state.hassession);
+
+        if (state.hassession) {
+            var code = Util.region(view.root, 'joincode');
+            if (code) {
+                code.textContent = state.joincode;
+            }
+            var online = Util.region(view.root, 'onlinecount');
+            if (online) {
+                online.textContent = state.onlinecount + ' / ' + state.participantcount;
+            }
+        }
+
+        updateStage(view, state);
+
+        var position = Util.region(view.root, 'slideposition');
+        if (position) {
+            position.textContent = state.slide
+                ? ((state.slide.index + 1) + ' / ' + state.slidecount)
+                : ('0 / ' + state.slidecount);
+        }
+
+        highlightThumb(view, state.slide ? state.slide.id : 0);
+
+        // A new round should always pop the overlay back open, and start with
+        // the board down so the question has the screen to itself.
+        if (state.round && state.round.id !== previousRound) {
+            view.overlayDismissed = false;
+            view.boardVisible = false;
+            view.revealedRound = 0;
+            view.expiredRound = 0;
+        }
+
+        // Revealing the answer raises the board once. After that the teacher owns it.
+        if (state.round && state.round.revealed && view.revealedRound !== state.round.id) {
+            view.revealedRound = state.round.id;
+            if (!state.interaction || state.interaction.showleaderboard !== 0) {
+                view.boardVisible = true;
+            }
+        }
+
+        updateRoundButtons(view, state);
+        updateOverlay(view, state);
+    };
+
+    /**
+     * Show the slide, or an explanation of why there is no slide.
+     *
+     * An <img> with no src is drawn by the browser as a broken image icon, which
+     * is what a teacher used to be greeted with before starting a session.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var updateStage = function(view, state) {
+        var stage = Util.region(view.root, 'stage');
+        var figure = stage ? stage.querySelector('.islide-stage-image') : null;
+        var image = Util.region(view.root, 'slideimage');
+        var placeholder = Util.region(view.root, 'stageplaceholder');
+        var hasSlide = !!(state.slide && state.slide.imageurl);
+
+        if (hasSlide) {
+            if (image.getAttribute('src') !== state.slide.imageurl) {
+                image.setAttribute('src', state.slide.imageurl);
+            }
+            // Take the ratio from the imported page so nothing is letterboxed.
+            if (figure && state.slide.width > 0 && state.slide.height > 0) {
+                figure.style.setProperty('--islide-aspect',
+                    state.slide.width + ' / ' + state.slide.height);
+            }
+        } else {
+            image.removeAttribute('src');
+        }
+
+        Util.toggle(figure, hasSlide);
+        Util.toggle(placeholder, !hasSlide);
+
+        if (!hasSlide && placeholder) {
+            var title = placeholder.querySelector('[data-region="placeholder-title"]');
+            var text = placeholder.querySelector('[data-region="placeholder-text"]');
+            var noSession = !state.hassession;
+            if (title) {
+                title.textContent = noSession ? view.strings.nosessionyet : view.strings.waitingforslides;
+            }
+            if (text) {
+                text.textContent = noSession ? view.strings.nosessionyet_desc : '';
+            }
+        }
+    };
+
+    /**
+     * Mark the running slide in the filmstrip and scroll it into view.
+     *
+     * @param {Object} view
+     * @param {Number} slideid
+     * @return {void}
+     */
+    var highlightThumb = function(view, slideid) {
+        var strip = Util.region(view.root, 'filmstrip');
+        if (!strip) {
+            return;
+        }
+
+        Array.prototype.forEach.call(strip.querySelectorAll('.islide-thumb'), function(thumb) {
+            var active = parseInt(thumb.dataset.slideid, 10) === slideid;
+            thumb.classList.toggle('islide-thumb-active', active);
+            if (active) {
+                thumb.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+            }
+        });
+    };
+
+    /**
+     * Show only the transport buttons that make sense right now.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var updateRoundButtons = function(view, state) {
+        var show = function(action, visible) {
+            Util.actions(view.root, action).forEach(function(button) {
+                button.hidden = !visible;
+            });
+        };
+
+        var hasInteraction = !!(state.slide && state.slide.hasinteraction);
+        var round = state.round;
+        var open = !!(round && round.status === 'open');
+        var closed = !!(round && round.status === 'closed');
+        var hasAnswer = !!(state.interaction && state.interaction.hasanswer);
+        var live = state.hassession;
+
+        show('openround', live && hasInteraction && !open);
+        show('closeround', live && open);
+        show('reveal', live && round && hasAnswer && !round.revealed);
+        show('hide', live && round && hasAnswer && round.revealed);
+        show('showresult', live && round && !round.showresult);
+        show('hideresult', live && round && round.showresult);
+        show('reset', live && round && (closed || round.responsecount > 0));
+
+        var badge = view.root.querySelector('.islide-start-badge');
+        if (badge) {
+            // The badge is the big obvious way in; hide it once the round is up.
+            badge.hidden = !(live && hasInteraction && !round);
+        }
+    };
+
+    /**
+     * Draw the live overlay.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var updateOverlay = function(view, state) {
+        var overlay = Util.region(view.root, 'overlay');
+        var body = Util.region(view.root, 'overlay-body');
+        var boardPanel = Util.region(view.root, 'overlay-board');
+
+        var hasRound = !!(state.round && state.interaction);
+        var wantOverlay = state.hassession && ((hasRound && !view.overlayDismissed) || view.boardPinned);
+
+        if (!wantOverlay) {
+            Util.toggle(overlay, false);
+            stopTimer(view);
+            return;
+        }
+
+        Util.toggle(overlay, true);
+
+        var question = Util.region(view.root, 'overlay-question');
+        if (question) {
+            var text = hasRound ? (state.interaction.questiontext || '') : view.strings.leaderboard;
+            question.textContent = text;
+            // An empty heading would just eat projector space.
+            question.hidden = text === '';
+        }
+
+        var count = Util.region(view.root, 'overlay-count');
+        if (count) {
+            count.hidden = !hasRound;
+            if (hasRound) {
+                count.textContent = state.round.responsecount + ' / ' + state.participantcount;
+                count.title = view.strings.responsesreceived;
+            }
+        }
+
+        if (hasRound && !state.results) {
+            // No tally yet, on purpose. The room still has to be able to read
+            // what it is choosing between, so show the question's own options or
+            // blanks with nothing filled in.
+            Render.prompt(body, state.interaction, view.strings);
+        } else {
+            Render.results(body, hasRound ? state.results : null, view.strings, {
+                large: true,
+                award: view.canAward
+            });
+        }
+
+        if (view.boardVisible && state.leaderboard.length) {
+            // Fewer rows, bigger rows: a projected board is read from a distance.
+            Render.leaderboard(boardPanel, state.leaderboard.slice(0, 8), view.strings, {
+                award: view.canAward
+            });
+            Util.toggle(boardPanel, true);
+        } else {
+            Util.toggle(boardPanel, false);
+        }
+
+        var timer = Util.region(view.root, 'timer');
+        if (hasRound && state.round.timelimit > 0) {
+            if (state.round.status === 'open') {
+                startTimer(view, timer, state);
+            } else {
+                // A closed round keeps the ring on screen at zero. Running the
+                // countdown here made it expire immediately, refresh, restart and
+                // expire again, which is what made the results flash.
+                stopTimer(view);
+                Util.drawTimer(timer, 0, state.round.timelimit);
+            }
+        } else {
+            stopTimer(view);
+            Util.toggle(timer, false);
+        }
+    };
+
+    /**
+     * Run the countdown locally between polls.
+     *
+     * @param {Object} view
+     * @param {Element} widget
+     * @param {Object} state
+     * @return {void}
+     */
+    var startTimer = function(view, widget, state) {
+        stopTimer(view);
+
+        var total = state.round.timelimit;
+        view.deadline = Date.now() + (state.round.secondsleft * 1000);
+
+        var roundid = state.round.id;
+
+        var tick = function() {
+            var left = Math.max(0, (view.deadline - Date.now()) / 1000);
+            Util.drawTimer(widget, left, total);
+
+            if (left > 0) {
+                return;
+            }
+
+            stopTimer(view);
+
+            // The server closes the round on expiry; ask it what happened, but
+            // only once per round or the answer never stops arriving.
+            if (view.expiredRound !== roundid) {
+                view.expiredRound = roundid;
+                view.poller.refresh();
+            }
+        };
+
+        tick();
+        view.timerHandle = window.setInterval(tick, 250);
+    };
+
+    /**
+     * Stop the local countdown.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var stopTimer = function(view) {
+        if (view.timerHandle) {
+            window.clearInterval(view.timerHandle);
+            view.timerHandle = null;
+        }
+    };
+
+    /**
+     * Enter or leave fullscreen on the console.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var toggleFullscreen = function(view) {
+        if (document.fullscreenElement) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+            return;
+        }
+
+        var target = view.root;
+        var request = target.requestFullscreen || target.webkitRequestFullscreen;
+        if (request) {
+            var result = request.call(target);
+            if (result && result.catch) {
+                // Browsers refuse fullscreen outside a user gesture; nothing to report.
+                result.catch(function() {
+                    return null;
+                });
+            }
+        }
+    };
+
+    return {init: init};
+});
