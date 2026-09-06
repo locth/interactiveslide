@@ -25,7 +25,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_interactiveslide';
-$plugin->version   = 2026090700;
+$plugin->version   = 2026090703;
 $plugin->requires  = 2025041400; // Moodle 5.0.
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '1.10.0';
+$plugin->maturity  = MATURITY_STABLE;
+$plugin->release   = '1.12.1';

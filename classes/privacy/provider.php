@@ -69,6 +69,12 @@ class provider implements
             'stars' => 'privacy:metadata:answer:stars',
         ], 'privacy:metadata:answer');
 
+        $collection->add_database_table('interactiveslide_session', [
+            'createdby' => 'privacy:metadata:session:createdby',
+            'name' => 'privacy:metadata:session:name',
+            'timecreated' => 'privacy:metadata:session:timecreated',
+        ], 'privacy:metadata:session');
+
         $collection->add_database_table('interactiveslide_award', [
             'userid' => 'privacy:metadata:award:userid',
             'stars' => 'privacy:metadata:award:stars',
@@ -89,6 +95,7 @@ class provider implements
     public static function get_contexts_for_userid(int $userid): contextlist {
         $contextlist = new contextlist();
 
+        // Taking part in a session.
         $sql = "SELECT ctx.id
                   FROM {course_modules} cm
                   JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
@@ -100,6 +107,24 @@ class provider implements
         $contextlist->add_from_sql($sql, [
             'contextlevel' => CONTEXT_MODULE,
             'userid' => $userid,
+        ]);
+
+        // Running a session is recorded against the presenter, and handing out a
+        // star is recorded against whoever gave it. Both are personal data about
+        // members of staff, so they have to be findable here as well.
+        $staffsql = "SELECT ctx.id
+                       FROM {course_modules} cm
+                       JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
+                       JOIN {interactiveslide} i ON i.id = cm.instance
+                       JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = :contextlevel
+                       JOIN {interactiveslide_session} s ON s.interactiveslideid = i.id
+                  LEFT JOIN {interactiveslide_award} a ON a.sessionid = s.id AND a.awardedby = :awardedby
+                      WHERE s.createdby = :createdby OR a.id IS NOT NULL";
+
+        $contextlist->add_from_sql($staffsql, [
+            'contextlevel' => CONTEXT_MODULE,
+            'createdby' => $userid,
+            'awardedby' => $userid,
         ]);
 
         return $contextlist;
@@ -125,6 +150,25 @@ class provider implements
                  WHERE cm.id = :cmid";
 
         $userlist->add_from_sql('userid', $sql, ['cmid' => $context->instanceid]);
+
+        $presentersql = "SELECT s.createdby
+                           FROM {course_modules} cm
+                           JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
+                           JOIN {interactiveslide} i ON i.id = cm.instance
+                           JOIN {interactiveslide_session} s ON s.interactiveslideid = i.id
+                          WHERE cm.id = :cmid AND s.createdby > 0";
+
+        $userlist->add_from_sql('createdby', $presentersql, ['cmid' => $context->instanceid]);
+
+        $awardersql = "SELECT a.awardedby
+                         FROM {course_modules} cm
+                         JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
+                         JOIN {interactiveslide} i ON i.id = cm.instance
+                         JOIN {interactiveslide_session} s ON s.interactiveslideid = i.id
+                         JOIN {interactiveslide_award} a ON a.sessionid = s.id
+                        WHERE cm.id = :cmid AND a.awardedby > 0";
+
+        $userlist->add_from_sql('awardedby', $awardersql, ['cmid' => $context->instanceid]);
     }
 
     /**
@@ -158,12 +202,46 @@ class provider implements
                 ['instanceid' => $cm->instance, 'userid' => $user->id]
             );
 
-            if (!$sessions) {
+            $presented = $DB->get_records_sql(
+                'SELECT s.id, s.name, s.timecreated,
+                        (SELECT COUNT(a.id) FROM {interactiveslide_award} a
+                          WHERE a.sessionid = s.id AND a.awardedby = :awardedby) AS awardsgiven
+                   FROM {interactiveslide_session} s
+                  WHERE s.interactiveslideid = :instanceid
+                        AND (s.createdby = :createdby OR EXISTS (
+                            SELECT 1 FROM {interactiveslide_award} a2
+                             WHERE a2.sessionid = s.id AND a2.awardedby = :awardedby2))
+               ORDER BY s.timecreated ASC',
+                [
+                    'instanceid' => $cm->instance,
+                    'createdby' => $user->id,
+                    'awardedby' => $user->id,
+                    'awardedby2' => $user->id,
+                ]
+            );
+
+            if (!$sessions && !$presented) {
                 continue;
             }
 
             writer::with_context($context)->export_data([], helper::get_context_data($context, $user));
             helper::export_context_files($context, $user);
+
+            if ($presented) {
+                $ran = [];
+                foreach ($presented as $session) {
+                    $ran[] = (object)[
+                        'session' => $session->name,
+                        'started' => transform::datetime($session->timecreated),
+                        'starsawarded' => (int)$session->awardsgiven,
+                    ];
+                }
+
+                writer::with_context($context)->export_data(
+                    [get_string('privacy:presenterpath', 'mod_interactiveslide')],
+                    (object)['sessions' => $ran]
+                );
+            }
 
             foreach ($sessions as $participant) {
                 $answers = $DB->get_records_sql(
@@ -293,5 +371,13 @@ class provider implements
             "sessionid $sesssql AND userid $usersql", array_merge($sessparams, $userparams));
         $DB->delete_records_select('interactiveslide_participant',
             "sessionid $sesssql AND userid $usersql", array_merge($sessparams, $userparams));
+
+        // A star given to somebody else belongs to whoever received it, and the
+        // record of a session belongs to the room. Neither may be deleted along
+        // with the member of staff, so only the reference back to them goes.
+        $DB->set_field_select('interactiveslide_award', 'awardedby', 0,
+            "sessionid $sesssql AND awardedby $usersql", array_merge($sessparams, $userparams));
+        $DB->set_field_select('interactiveslide_session', 'createdby', 0,
+            "id $sesssql AND createdby $usersql", array_merge($sessparams, $userparams));
     }
 }

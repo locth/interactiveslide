@@ -44,7 +44,8 @@ define([
         'nowordsyet', 'noanswersyet', 'noparticipantsyet', 'correctanswer', 'blank',
         'beststreak', 'leaderboard', 'stars', 'sessionstarted', 'sessionended',
         'roundopened', 'roundclosedtoast', 'answerrevealed', 'awardstar', 'awardreason', 'starawarded',
-        'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers'
+        'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers',
+        'showresultscreen', 'hideresultscreen'
     ];
 
     /**
@@ -90,6 +91,11 @@ define([
             deadline: null,
             overlayDismissed: false,
             boardVisible: false,
+            // The slide the console is currently parked on, and the round whose
+            // opening has already pushed the overlay up. Together they keep the
+            // overlay from reappearing over a slide the teacher came back to.
+            slideShown: 0,
+            openedRound: 0,
             revealedRound: 0,
             expiredRound: 0,
             canAward: !!config.canaward,
@@ -301,6 +307,13 @@ define([
             Util.toggle(Util.region(view.root, 'overlay'), false);
         });
 
+        on('toggleoverlay', function() {
+            view.overlayDismissed = !view.overlayDismissed;
+            if (view.state) {
+                apply(view, view.state);
+            }
+        });
+
         on('toggleboard', function() {
             // One explicit flag, so turning the board off keeps it off. It used
             // to be recomputed from "has the answer been revealed", which put it
@@ -505,19 +518,45 @@ define([
             view.annotate.setSlide(state.slide ? state.slide.id : 0);
         }
 
-        // A new round should always pop the overlay back open, and start with
-        // the board down so the question has the screen to itself.
+        // Arriving on a slide shows the slide. Coming back to a question that
+        // has already been run used to bury its own slide under the result, and
+        // the way back was not obvious; the result is now one button away.
+        var slideid = state.slide ? state.slide.id : 0;
+        var roundopen = !!(state.round && state.round.status === 'open');
+        var arrived = slideid !== view.slideShown;
+
+        if (arrived) {
+            view.slideShown = slideid;
+            view.boardVisible = false;
+            // A round still collecting is the exception: that is the thing the
+            // room is watching, so it keeps the screen.
+            view.overlayDismissed = !roundopen;
+        }
+
         if (state.round && state.round.id !== previousRound) {
-            view.overlayDismissed = false;
             view.boardVisible = false;
             view.revealedRound = 0;
             view.expiredRound = 0;
         }
 
-        // Revealing the answer raises the board once. After that the teacher owns it.
+        // Opening a round raises the overlay, whoever opened it and from
+        // whichever device. Closing re-arms that, so running the same question
+        // a second time raises it again.
+        if (roundopen) {
+            if (view.openedRound !== state.round.id) {
+                view.openedRound = state.round.id;
+                view.overlayDismissed = false;
+            }
+        } else {
+            view.openedRound = 0;
+        }
+
+        // Revealing the answer raises the board once. After that the teacher owns
+        // it. Arriving on a slide whose answer was revealed earlier only records
+        // that: an old reveal must not raise anything over the slide.
         if (state.round && state.round.revealed && view.revealedRound !== state.round.id) {
             view.revealedRound = state.round.id;
-            if (!state.interaction || state.interaction.showleaderboard !== 0) {
+            if (!arrived && (!state.interaction || state.interaction.showleaderboard !== 0)) {
                 view.boardVisible = true;
             }
         }
@@ -623,6 +662,16 @@ define([
         show('hideresult', live && round && round.showresult);
         show('reset', live && round && (closed || round.responsecount > 0));
 
+        // The way back to a result the teacher has put away, and the way to put
+        // it away in the first place.
+        show('toggleoverlay', live && (!!round || view.boardVisible));
+        var overlaylabel = Util.region(view.root, 'toggleoverlay-label');
+        if (overlaylabel) {
+            overlaylabel.textContent = view.overlayDismissed
+                ? view.strings.showresultscreen
+                : view.strings.hideresultscreen;
+        }
+
         var badge = view.root.querySelector('.islide-start-badge');
         if (badge) {
             // The badge is the big obvious way in; hide it once the round is up.
@@ -643,7 +692,13 @@ define([
         var boardPanel = Util.region(view.root, 'overlay-board');
 
         var hasRound = !!(state.round && state.interaction);
-        var wantOverlay = state.hassession && ((hasRound && !view.overlayDismissed) || view.boardPinned);
+        // Dismissal comes first, always. The leaderboard decides whether there is
+        // anything worth showing when no question is up; it must never override
+        // the teacher having put the overlay away, or the close button and the
+        // show/hide button both stop working while the board is raised.
+        var wantOverlay = state.hassession
+            && !view.overlayDismissed
+            && (hasRound || view.boardVisible);
 
         if (!wantOverlay) {
             Util.toggle(overlay, false);

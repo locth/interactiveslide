@@ -48,6 +48,12 @@ class helper {
         $context = context_module::instance($cm->id);
 
         require_login($course, false, $cm);
+
+        // Before any capability is consulted: a web service token can be tied to
+        // one context, and this is what enforces that restriction. Doing it here
+        // means no caller can reach a capability check without it having run.
+        \core_external\external_api::validate_context($context);
+
         require_capability('mod/interactiveslide:view', $context);
 
         $instance = $DB->get_record('interactiveslide', ['id' => $cm->instance], '*', MUST_EXIST);

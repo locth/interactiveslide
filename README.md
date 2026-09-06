@@ -54,7 +54,10 @@ Built for **Moodle 5.0+**.
 **Sessions**
 : Students see nothing until a teacher starts a session, and only ever see the
   slide the teacher is on. A round accepts answers only while it is open and only
-  from students who are on that slide.
+  from students who are on that slide. With late joining switched off, the door
+  closes when the first question opens rather than when the session starts, so
+  the people still walking in are not shut out but a latecomer cannot collect
+  stars for a session they missed.
 
 **Presenting**
 : A presentation mode that fills the window, with a filmstrip, keyboard transport
@@ -63,6 +66,12 @@ Built for **Moodle 5.0+**.
   the word cloud, bar chart, timer, answer key and leaderboard. The stage takes
   each page's own ratio, so nothing is letterboxed, and presentation mode drops
   the filmstrip so the deck owns the projector.
+
+  Opening a question raises that overlay; arriving on a slide never does, so a
+  question run earlier in the lecture does not bury its own slide when the
+  teacher comes back to it. A **Show result** button on the transport bar brings
+  it back, and puts it away again. The one exception is a question still
+  collecting answers: that is what the room is watching, so it keeps the screen.
 
   Presentation mode is drawn by the plugin itself rather than asked of the
   browser, because iPadOS does not give web pages the Fullscreen API at all — the
@@ -75,7 +84,10 @@ Built for **Moodle 5.0+**.
 **Annotating**
 : A laser pointer (a dot, or a trail that stays while you are using it and starts
   fading only after you have stopped for a moment, so a second stroke does not
-  erase the first), a pen in three colours and
+  erase the first). Presenting from a laptop there is no pen to press, so the dot
+  follows the mouse instead: the layer hides the system cursor, because the room
+  should be shown a laser dot rather than an arrow, and the dot takes its place.
+  A pen in three colours and
   three thicknesses, a highlighter in three colours, and an eraser that lifts
   whole strokes. Built for a stylus on a tablet: strokes follow pen pressure,
   a hand resting on the screen is ignored while the stylus is in use, and the

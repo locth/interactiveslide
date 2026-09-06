@@ -75,4 +75,5 @@ In this order, and it only probes files that exist on disk:
 No PDF ever leaves the teacher's browser during rendering; only the finished PNG
 of each page is uploaded. Nothing is installed on the server.
 
-pdf.js is distributed under the Apache License 2.0.
+pdf.js is distributed under the Apache License 2.0. The full text is in
+`LICENSE` beside this file, as that licence requires.

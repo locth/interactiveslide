@@ -56,11 +56,15 @@ class session_manager {
     public static function get_active_session(int $interactiveslideid): ?stdClass {
         global $DB;
 
-        $session = $DB->get_record('interactiveslide_session',
+        // Two presenters pressing Start in the same instant can leave two rows
+        // active. Picking the newest deterministically means every request in
+        // the room agrees on which session that is, rather than each one being
+        // handed whatever the database returned first.
+        $sessions = $DB->get_records('interactiveslide_session',
             ['interactiveslideid' => $interactiveslideid, 'status' => self::STATUS_ACTIVE],
-            '*', IGNORE_MULTIPLE);
+            'timecreated DESC, id DESC', '*', 0, 1);
 
-        return $session ?: null;
+        return $sessions ? reset($sessions) : null;
     }
 
     /**
@@ -388,6 +392,34 @@ class session_manager {
     }
 
     /**
+     * Whether this user may still become a participant in a running session.
+     *
+     * With late joining switched off the door closes when the first question
+     * opens, not when the session starts: people trickle into a lecture hall
+     * for several minutes and none of that should cost them the session.
+     * Anyone already in the room stays in it.
+     *
+     * @param stdClass $instance the deck record
+     * @param stdClass $session
+     * @param int $userid
+     * @return bool
+     */
+    public static function can_join(stdClass $instance, stdClass $session, int $userid): bool {
+        global $DB;
+
+        if (!empty($instance->allowlatejoin)) {
+            return true;
+        }
+
+        if ($DB->record_exists('interactiveslide_participant',
+                ['sessionid' => $session->id, 'userid' => $userid])) {
+            return true;
+        }
+
+        return !$DB->record_exists('interactiveslide_round', ['sessionid' => $session->id]);
+    }
+
+    /**
      * Record that a user is present in a session, creating their row on first sight.
      *
      * @param stdClass $session
@@ -595,7 +627,8 @@ class session_manager {
             $session->statechanged = self::get_revision((int)$session->id);
         }
 
-        if (has_capability('mod/interactiveslide:submit', $context)) {
+        if (has_capability('mod/interactiveslide:submit', $context)
+                && self::can_join($instance, $session, $userid)) {
             self::touch_participant($session, $userid);
         }
 

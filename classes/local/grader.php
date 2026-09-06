@@ -57,6 +57,12 @@ class grader {
             throw new moodle_exception('errorroundclosed', 'mod_interactiveslide');
         }
 
+        // A deck that does not allow late joining has to say so here as well:
+        // the setting is worth nothing if the answer still counts.
+        if (!session_manager::can_join($instance, $session, $userid)) {
+            throw new moodle_exception('errorlatejoin', 'mod_interactiveslide');
+        }
+
         $existing = $DB->get_record('interactiveslide_response',
             ['roundid' => $round->id, 'userid' => $userid]);
         if ($existing && empty($interaction->allowretry)) {
@@ -69,6 +75,12 @@ class grader {
         $timetaken = max(0, ($now - (int)$round->timeopen)) * 1000;
 
         $bonus = self::speed_bonus($instance, $round, $marked['iscorrect'], $now);
+
+        // Outside the transaction on purpose. Creating the participant row can
+        // lose a race with the student's own poll, and it recovers by catching
+        // the unique key violation; on PostgreSQL a caught error still poisons
+        // an open transaction, which would take the whole submission with it.
+        session_manager::touch_participant($session, $userid);
 
         $transaction = $DB->start_delegated_transaction();
 
@@ -108,7 +120,6 @@ class grader {
             ]);
         }
 
-        session_manager::touch_participant($session, $userid);
         session_manager::recalculate_participant((int)$session->id, $userid);
 
         $transaction->allow_commit();

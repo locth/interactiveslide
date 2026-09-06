@@ -93,6 +93,9 @@ define(['mod_interactiveslide/util'], function(Util) {
 
             drawing: null,
             dot: null,
+            // The laser head is drawn both while pointing and, on a mouse, while
+            // merely hovering; this says which of the two is happening.
+            laserdown: false,
             lastPen: 0,
 
             // The laser keeps whole strokes rather than one timestamped trail:
@@ -518,8 +521,14 @@ define(['mod_interactiveslide/util'], function(Util) {
             }
 
             if (view.tool === 'laser') {
-                if (view.dot) {
+                if (view.laserdown) {
                     laserExtend(view, pointOf(view, event));
+                } else if (event.pointerType === 'mouse') {
+                    // Presenting from a laptop there is no pen to press, and the
+                    // layer hides the mouse cursor so the room is not shown an
+                    // arrow next to the dot. The dot follows the mouse instead,
+                    // which is what a laser pointer does anyway.
+                    laserHover(view, pointOf(view, event));
                 }
                 return;
             }
@@ -549,7 +558,14 @@ define(['mod_interactiveslide/util'], function(Util) {
             capture(layer, event.pointerId, false);
 
             if (view.tool === 'laser') {
-                laserEnd(view);
+                if (view.laserdown) {
+                    laserEnd(view);
+                } else {
+                    // Only the hover head was showing; take it off without
+                    // restarting the fade of whatever is already on screen.
+                    view.dot = null;
+                    paintLaser(view);
+                }
                 return;
             }
 
@@ -692,6 +708,7 @@ define(['mod_interactiveslide/util'], function(Util) {
 
         laser.opacity = 1;
         view.dot = point;
+        view.laserdown = true;
 
         if (view.lasermode === 'line') {
             laser.current = [point];
@@ -731,6 +748,7 @@ define(['mod_interactiveslide/util'], function(Util) {
     var laserEnd = function(view) {
         var laser = view.laserState;
         view.dot = null;
+        view.laserdown = false;
         laser.current = null;
 
         if (view.lasermode !== 'line' || !laser.strokes.length) {
@@ -772,10 +790,26 @@ define(['mod_interactiveslide/util'], function(Util) {
         laser.points = 0;
         laser.opacity = 1;
         view.dot = null;
+        view.laserdown = false;
 
         if (view.width) {
             view.laser.ctx.clearRect(0, 0, view.width, view.height);
         }
+    };
+
+    /**
+     * Move the laser head without drawing: the mouse pointing, not pressing.
+     *
+     * Deliberately touches neither the hold timer nor the opacity, so a trail
+     * left by the last stroke keeps fading while the head moves over it.
+     *
+     * @param {Object} view
+     * @param {Object} point
+     * @return {void}
+     */
+    var laserHover = function(view, point) {
+        view.dot = point;
+        paintLaser(view);
     };
 
     /**
@@ -854,11 +888,13 @@ define(['mod_interactiveslide/util'], function(Util) {
             drawTrail(view, ctx, stroke);
         });
 
+        ctx.restore();
+
+        // Outside the fade: the head is where the pointer is now, so it stays
+        // bright even while an older trail underneath it is on its way out.
         if (view.dot) {
             drawDot(view, ctx, view.dot);
         }
-
-        ctx.restore();
     };
 
     /**

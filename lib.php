@@ -176,6 +176,17 @@ function interactiveslide_pluginfile($course, $cm, $context, $filearea, $args, $
         return false;
     }
 
+    // When the site has chosen to keep the deck off the students' devices, the
+    // state document already withholds the URL. Withhold the bytes here too:
+    // a URL is guessable from a slide id, so leaving this open would make the
+    // setting a suggestion rather than a rule.
+    if ($filearea === 'slideimage'
+            && !\mod_interactiveslide\local\settings::student_slides_visible()
+            && !has_capability('mod/interactiveslide:present', $context)
+            && !has_capability('mod/interactiveslide:manage', $context)) {
+        return false;
+    }
+
     $itemid = (int)array_shift($args);
     $filename = array_pop($args);
     $filepath = $args ? '/' . implode('/', $args) . '/' : '/';
@@ -344,10 +355,17 @@ function interactiveslide_reset_userdata($data) {
     $componentstr = get_string('modulenameplural', 'mod_interactiveslide');
 
     if (!empty($data->reset_interactiveslide_sessions)) {
-        $instanceids = $DB->get_fieldset_select('interactiveslide', 'id', 'course = ?', [$data->courseid]);
-        foreach ($instanceids as $instanceid) {
-            \mod_interactiveslide\local\session_manager::delete_all_sessions($instanceid);
+        foreach ($DB->get_records('interactiveslide', ['course' => $data->courseid]) as $instance) {
+            \mod_interactiveslide\local\session_manager::delete_all_sessions((int)$instance->id);
         }
+
+        // The stars are gone, so the grades computed from them have to go too.
+        // Without this the gradebook keeps marks for work that no longer exists.
+        // When the reset form is also clearing grades, core does it for us.
+        if (empty($data->reset_gradebook_grades)) {
+            interactiveslide_reset_gradebook($data->courseid);
+        }
+
         $status[] = [
             'component' => $componentstr,
             'item' => get_string('resetsessions', 'mod_interactiveslide'),
@@ -356,6 +374,23 @@ function interactiveslide_reset_userdata($data) {
     }
 
     return $status;
+}
+
+/**
+ * Wipe the gradebook items of every deck in a course.
+ *
+ * Called by the course reset, and by core when the reset is clearing grades.
+ *
+ * @param int $courseid
+ * @param string $type unused, kept for the core callback signature
+ * @return void
+ */
+function interactiveslide_reset_gradebook($courseid, $type = '') {
+    global $DB;
+
+    foreach ($DB->get_records('interactiveslide', ['course' => $courseid]) as $instance) {
+        interactiveslide_grade_item_update($instance, 'reset');
+    }
 }
 
 /**

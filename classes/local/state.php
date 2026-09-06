@@ -95,7 +95,8 @@ class state {
         // The join code is a shortcut for the room, not a secret from students.
         $payload['joincode'] = (string)$session->joincode;
 
-        if (has_capability('mod/interactiveslide:submit', $context)) {
+        if (has_capability('mod/interactiveslide:submit', $context)
+                && session_manager::can_join($instance, $session, $userid)) {
             session_manager::touch_participant($session, $userid);
         }
 

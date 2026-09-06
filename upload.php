@@ -93,7 +93,8 @@ switch ($action) {
             ]);
         }
 
-        if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK) {
+        if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK
+                || !is_uploaded_file($_FILES['image']['tmp_name'])) {
             interactiveslide_reply([
                 'status' => 'error',
                 'message' => get_string('erroruploadfailed', 'mod_interactiveslide'),
