@@ -36,7 +36,7 @@ class state {
     public const ONLINE_WINDOW = 25;
 
     /** @var int How many rows the presenter's leaderboard carries. */
-    public const PRESENTER_BOARD_LIMIT = 50;
+    public const PRESENTER_BOARD_LIMIT = 100;
 
     /**
      * Assemble the state for one viewer.

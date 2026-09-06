@@ -330,9 +330,12 @@ function interactiveslide_extend_settings_navigation(settings_navigation $settin
         );
     }
 
-    if (has_capability('mod/interactiveslide:viewreports', $context)) {
+    // Staff get the room's report; everyone else gets their own, which the
+    // report page restricts to their own rows.
+    $canviewall = has_capability('mod/interactiveslide:viewreports', $context);
+    if ($canviewall || has_capability('mod/interactiveslide:submit', $context)) {
         $node->add(
-            get_string('reports', 'mod_interactiveslide'),
+            get_string($canviewall ? 'reports' : 'myreports', 'mod_interactiveslide'),
             new moodle_url('/mod/interactiveslide/report.php', ['id' => $cm->id]),
             navigation_node::TYPE_SETTING,
             null,

@@ -96,7 +96,6 @@ define([
             // overlay from reappearing over a slide the teacher came back to.
             slideShown: 0,
             openedRound: 0,
-            revealedRound: 0,
             expiredRound: 0,
             canAward: !!config.canaward,
             busy: false
@@ -535,7 +534,6 @@ define([
 
         if (state.round && state.round.id !== previousRound) {
             view.boardVisible = false;
-            view.revealedRound = 0;
             view.expiredRound = 0;
         }
 
@@ -551,15 +549,9 @@ define([
             view.openedRound = 0;
         }
 
-        // Revealing the answer raises the board once. After that the teacher owns
-        // it. Arriving on a slide whose answer was revealed earlier only records
-        // that: an old reveal must not raise anything over the slide.
-        if (state.round && state.round.revealed && view.revealedRound !== state.round.id) {
-            view.revealedRound = state.round.id;
-            if (!arrived && (!state.interaction || state.interaction.showleaderboard !== 0)) {
-                view.boardVisible = true;
-            }
-        }
+        // The board goes up when its button is pressed and at no other time.
+        // Revealing an answer used to raise it by itself, which put a list of
+        // names over the answer the room was reading.
 
         updateRoundButtons(view, state);
         updateOverlay(view, state);
@@ -738,8 +730,11 @@ define([
         }
 
         if (view.boardVisible && state.leaderboard.length) {
-            // Fewer rows, bigger rows: a projected board is read from a distance.
-            Render.leaderboard(boardPanel, state.leaderboard.slice(0, 8), view.strings, {
+            // The whole board. It used to be cut to eight rows because it sat
+            // under the question and any more pushed the question off the top;
+            // in its own column it scrolls instead, so a class of eighty is all
+            // there and the teacher can reach anyone to hand them a star.
+            Render.leaderboard(boardPanel, state.leaderboard, view.strings, {
                 award: view.canAward
             });
             Util.toggle(boardPanel, true);

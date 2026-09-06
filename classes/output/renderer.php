@@ -42,16 +42,38 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_student_player(stdClass $instance, $cm, context_module $context): string {
+        global $USER;
+
         $this->page->requires->js_call_amd('mod_interactiveslide/student', 'init', [[
             'cmid' => (int)$cm->id,
             'pollinterval' => self::poll_interval(),
         ]]);
+
+        // Counted here rather than polled: a student who has come to look up how
+        // many stars they have should get the number whether or not a session is
+        // running, and without a request every two seconds while they read it.
+        $totals = \mod_interactiveslide\local\report_builder::own_totals(
+            (int)$cm->course, (int)$instance->id, (int)$USER->id);
+
+        $session = \mod_interactiveslide\local\session_manager::get_active_session((int)$instance->id);
 
         return $this->render_from_template('mod_interactiveslide/student_player', [
             'cmid' => (int)$cm->id,
             'name' => format_string($instance->name),
             'intro' => format_module_intro('interactiveslide', $instance, $cm->id),
             'hasintro' => trim(strip_tags($instance->intro ?? '')) !== '',
+            'activitystars' => $totals['activity'],
+            'coursestars' => $totals['course'],
+            // Built here rather than with a parameterised {{#str}}: one place
+            // where the number and the wording meet, and it is the place that
+            // already knows the number.
+            'sessionsjoinedtext' => get_string('sessionsjoined', 'mod_interactiveslide',
+                $totals['sessions']),
+            'acrossactivitiestext' => get_string('acrossactivities', 'mod_interactiveslide',
+                $totals['decks']),
+            'sessionlive' => (bool)$session,
+            'reporturl' => (new \moodle_url('/mod/interactiveslide/report.php',
+                ['id' => (int)$cm->id]))->out(false),
         ]);
     }
 

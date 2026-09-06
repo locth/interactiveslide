@@ -73,6 +73,22 @@ Built for **Moodle 5.0+**.
   it back, and puts it away again. The one exception is a question still
   collecting answers: that is what the room is watching, so it keeps the screen.
 
+  The leaderboard sits beside the result rather than under it, taking half the
+  width, and only when its own button is pressed. A class of eighty makes a board
+  taller than the screen; underneath the question it pushed the question off the
+  top, so it now takes a column of its own and scrolls inside it. Every name is
+  there — the teacher can scroll to anyone to hand them a star — and the question
+  does not move. Below about 900px, or on a tablet held upright, the two stack
+  again with the board capped, because there is no room for two columns.
+
+  The board is the one part of the overlay that is not projector typography. It
+  is what the teacher reads from their own screen while looking for a name, so
+  its rows are smaller: nine or ten people on screen at once rather than four,
+  each carrying a place, a picture, a name, a star count and the star button, and
+  nothing else. Sized like the rest of the overlay it fitted four, and the name —
+  the only flexible column — collapsed to nothing between the picture and the
+  count, leaving a row of medals with nobody on it.
+
   Presentation mode is drawn by the plugin itself rather than asked of the
   browser, because iPadOS does not give web pages the Fullscreen API at all — the
   button used to fail there with nothing to show for it. Now the console pins
@@ -113,6 +129,19 @@ Built for **Moodle 5.0+**.
   room still sees the question's own options or blanks, just with nothing filled
   in. Pushing the result to the students' own phones is a separate, deliberate
   action.
+
+**For the student**
+: Opening the activity shows what they have collected before it shows anything
+  live: their stars in this activity and their stars across every Interactive
+  Slide in the course, with a button to start taking part. Until they press it
+  nothing is polled and no attendance is recorded — someone who came only to look
+  up a number is not counted as present, and costs the server nothing while they
+  read it. The live screen is the second step, with a way back to the first.
+
+  Students can also open the report, restricted to their own line: one session,
+  every session of this activity, or their total across the course. The
+  restriction is applied in the queries, so nobody else's rows are loaded at all,
+  and the session picker offers only the sessions they were actually in.
 
 **Gamification**
 : Stars for joining a session, per-session and all-sessions leaderboards with

@@ -36,14 +36,35 @@ $download = optional_param('download', '', PARAM_ALPHA);
 $context = context_module::instance($cm->id);
 
 require_login($course, false, $cm);
-require_capability('mod/interactiveslide:viewreports', $context);
+
+// Staff read the whole room; a student reads their own line and nothing else.
+// The restriction is applied in the queries rather than by filtering rows after
+// the fact, so nobody else's data is ever loaded to begin with.
+$canviewall = has_capability('mod/interactiveslide:viewreports', $context);
+if (!$canviewall) {
+    require_capability('mod/interactiveslide:view', $context);
+}
+$onlyuserid = $canviewall ? 0 : (int)$USER->id;
 
 $instance = $DB->get_record('interactiveslide', ['id' => $cm->instance], '*', MUST_EXIST);
 
 $pageurl = new moodle_url('/mod/interactiveslide/report.php', ['id' => $cm->id, 'view' => $view]);
 
-$sessions = $DB->get_records('interactiveslide_session', ['interactiveslideid' => $instance->id],
-    'timecreated DESC');
+if ($onlyuserid) {
+    // Only the sessions this student was actually in: offering the rest would
+    // just be a list of empty tables, and it would leak when classes were run.
+    $sessions = $DB->get_records_sql(
+        'SELECT s.*
+           FROM {interactiveslide_session} s
+           JOIN {interactiveslide_participant} p ON p.sessionid = s.id AND p.userid = :userid
+          WHERE s.interactiveslideid = :instanceid
+       ORDER BY s.timecreated DESC',
+        ['instanceid' => $instance->id, 'userid' => $onlyuserid]
+    );
+} else {
+    $sessions = $DB->get_records('interactiveslide_session', ['interactiveslideid' => $instance->id],
+        'timecreated DESC');
+}
 
 $sessionid = 0;
 if (preg_match('/^s(\\d+)$/', $view, $matches)) {
@@ -57,13 +78,13 @@ if (preg_match('/^s(\\d+)$/', $view, $matches)) {
 
 if ($download) {
     if ($sessionid) {
-        [$columns, $rows] = report_builder::session_rows($sessionid);
+        [$columns, $rows] = report_builder::session_rows($sessionid, $onlyuserid);
         $filename = clean_filename(format_string($instance->name) . '-' . $sessions[$sessionid]->name);
     } else if ($view === 'course') {
-        [$columns, $rows] = report_builder::course_rows((int)$course->id);
+        [$columns, $rows] = report_builder::course_rows((int)$course->id, $onlyuserid);
         $filename = clean_filename(format_string($course->shortname) . '-interactiveslide-total');
     } else {
-        [$columns, $rows] = report_builder::overview_rows((int)$instance->id);
+        [$columns, $rows] = report_builder::overview_rows((int)$instance->id, $onlyuserid);
         $filename = clean_filename(format_string($instance->name) . '-overview');
     }
 
@@ -78,7 +99,13 @@ $PAGE->set_context($context);
 $PAGE->add_body_class('mod-interactiveslide');
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading(get_string('reports', 'mod_interactiveslide'));
+echo $OUTPUT->heading($onlyuserid
+    ? get_string('myreports', 'mod_interactiveslide')
+    : get_string('reports', 'mod_interactiveslide'));
+
+if ($onlyuserid) {
+    echo $OUTPUT->notification(get_string('myreports_desc', 'mod_interactiveslide'), 'info');
+}
 
 // View picker: the whole course, this deck, or one of its sessions.
 $options = [
@@ -97,14 +124,14 @@ $select->label = get_string('chooseview', 'mod_interactiveslide');
 echo $OUTPUT->render($select);
 
 if ($sessionid) {
-    [$columns, $rows] = report_builder::session_rows($sessionid);
+    [$columns, $rows] = report_builder::session_rows($sessionid, $onlyuserid);
     $heading = get_string('reportsession', 'mod_interactiveslide',
         format_string($sessions[$sessionid]->name));
 } else if ($view === 'course') {
-    [$columns, $rows] = report_builder::course_rows((int)$course->id);
+    [$columns, $rows] = report_builder::course_rows((int)$course->id, $onlyuserid);
     $heading = get_string('reportcourse', 'mod_interactiveslide');
 } else {
-    [$columns, $rows] = report_builder::overview_rows((int)$instance->id);
+    [$columns, $rows] = report_builder::overview_rows((int)$instance->id, $onlyuserid);
     $heading = get_string('reportoverview', 'mod_interactiveslide');
 }
 

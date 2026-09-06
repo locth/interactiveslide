@@ -25,12 +25,65 @@
         "cmid": 12,
         "name": "Chuong 3",
         "hasintro": false,
-        "intro": ""
+        "intro": "",
+        "activitystars": 19,
+        "coursestars": 52,
+        "sessionsjoinedtext": "From 3 session(s)",
+        "acrossactivitiestext": "Across 3 activities",
+        "sessionlive": true,
+        "reporturl": "#"
     }
 }}
 <div class="islide-player" data-region="interactiveslide-player" data-cmid="{{cmid}}">
 
+    <div class="islide-lobby" data-region="lobby" hidden>
+        <h2 class="islide-lobby-name">{{name}}</h2>
+
+        <div class="islide-lobby-stars">
+            <div class="islide-lobby-stat islide-lobby-stat-main">
+                <span class="islide-lobby-value">
+                    <span class="islide-star" aria-hidden="true">&#9733;</span>{{activitystars}}
+                </span>
+                <span class="islide-lobby-label">{{#str}}starsinactivity, mod_interactiveslide{{/str}}</span>
+                <span class="islide-lobby-sub">{{sessionsjoinedtext}}</span>
+            </div>
+
+            <div class="islide-lobby-stat">
+                <span class="islide-lobby-value">
+                    <span class="islide-star" aria-hidden="true">&#9733;</span>{{coursestars}}
+                </span>
+                <span class="islide-lobby-label">{{#str}}starsincourse, mod_interactiveslide{{/str}}</span>
+                <span class="islide-lobby-sub">{{acrossactivitiestext}}</span>
+            </div>
+        </div>
+
+        {{#hasintro}}<div class="islide-lobby-intro">{{{intro}}}</div>{{/hasintro}}
+
+        <div class="islide-lobby-actions">
+            <button type="button" class="btn btn-primary btn-lg" data-action="enter">
+                {{#str}}joinsession, mod_interactiveslide{{/str}}
+            </button>
+            <a class="btn btn-outline-secondary" href="{{reporturl}}">
+                {{#str}}myreports, mod_interactiveslide{{/str}}
+            </a>
+        </div>
+
+        {{#sessionlive}}
+            <p class="islide-lobby-live">
+                <span class="islide-live-dot" aria-hidden="true"></span>
+                {{#str}}sessionlivenow, mod_interactiveslide{{/str}}
+            </p>
+        {{/sessionlive}}
+    </div>
+
+    <div class="islide-player-live" data-region="live">
+
     <header class="islide-player-bar">
+        <button type="button" class="islide-icon-btn" data-action="leave"
+                title="{{#str}}backtostars, mod_interactiveslide{{/str}}">
+            <span aria-hidden="true">&#8592;</span>
+            <span class="islide-sr-only">{{#str}}backtostars, mod_interactiveslide{{/str}}</span>
+        </button>
         <div class="islide-player-title">
             <span class="islide-player-name">{{name}}</span>
             <span class="islide-player-slide" data-region="slideposition" hidden></span>
@@ -90,5 +143,7 @@
         <div class="islide-result" data-region="resultpanel" hidden></div>
 
         <div class="islide-board-panel" data-region="leaderboard" hidden></div>
+    </div>
+
     </div>
 </div>

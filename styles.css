@@ -500,6 +500,111 @@
     gap: 1rem;
 }
 
+.islide-player-live {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* ---------- The screen before joining ----------
+ *
+ * What a student sees when they open the activity: what they have collected so
+ * far, here and across the course, and the way in. Readable when nothing is
+ * running, which is most of the time.
+ */
+
+.islide-lobby {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+    padding: 2rem 1.25rem 2.5rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    text-align: center;
+}
+
+.islide-lobby-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--islide-ink);
+}
+
+.islide-lobby-stars {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    width: 100%;
+}
+
+.islide-lobby-stat {
+    flex: 1 1 12rem;
+    max-width: 18rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+    padding: 1.1rem 1rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-canvas);
+    border: 1px solid var(--islide-line);
+}
+
+.islide-lobby-stat-main {
+    border-color: var(--islide-star);
+    background: var(--islide-star-soft);
+}
+
+.islide-lobby-value {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    font-size: 2.4rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--islide-ink);
+}
+
+.islide-lobby-value .islide-star {
+    color: var(--islide-star);
+    font-size: 1.8rem;
+}
+
+.islide-lobby-label {
+    font-weight: 600;
+    color: var(--islide-ink);
+}
+
+.islide-lobby-sub {
+    font-size: .85rem;
+    color: var(--islide-muted);
+}
+
+.islide-lobby-intro {
+    max-width: 40rem;
+    color: var(--islide-muted);
+}
+
+.islide-lobby-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .75rem;
+}
+
+.islide-lobby-live {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 0;
+    font-weight: 600;
+    color: var(--islide-accent);
+}
+
 .islide-player-bar {
     display: flex;
     align-items: center;
@@ -853,9 +958,13 @@
 }
 
 .islide-bar-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    /* Wraps rather than truncating. This carries a fill-in-the-blank sentence or
+     * a multiple choice option, which is the thing the room has to read: an
+     * ellipsis through the middle of it is not a shorter version, it is an
+     * unreadable one. `anywhere` covers a long unbroken token — a URL, a formula
+     * — that would otherwise push the bar off the end of the row. */
+    min-width: 0;
+    overflow-wrap: anywhere;
     color: var(--islide-ink);
 }
 
@@ -1267,20 +1376,46 @@
     stroke: #d3dced;
 }
 
+/* Side by side, not stacked. A class of eighty makes a leaderboard taller than
+ * the screen; underneath the question it pushed the question off the top. Beside
+ * it, the board takes a column of its own and scrolls inside that column, so the
+ * question keeps its place however many names are on the board. */
+.islide-overlay-panes {
+    display: flex;
+    align-items: stretch;
+    gap: clamp(.75rem, 1.4vw, 1.5rem);
+    flex: 1;
+    min-height: 0;
+}
+
 .islide-overlay-body {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: auto;
 }
 
 .islide-overlay-board {
-    flex: none;
-    max-height: 40%;
+    flex: 0 0 clamp(16rem, 50%, 44rem);
+    min-height: 0;
     overflow: auto;
     padding: .75rem;
     border-radius: var(--islide-radius);
     background: var(--islide-surface);
     border: 1px solid var(--islide-line);
+}
+
+/* Too narrow for two columns: a phone held upright, or a tablet in portrait.
+ * Stack them again and cap the board so it cannot swallow the question. */
+@media (max-width: 900px), (orientation: portrait) and (max-width: 1100px) {
+    .islide-overlay-panes {
+        flex-direction: column;
+    }
+
+    .islide-overlay-board {
+        flex: 0 1 auto;
+        max-height: 40%;
+    }
 }
 
 .islide-transport {
@@ -2156,59 +2291,70 @@
 /* Leaderboard on the wall. */
 
 .islide-overlay-board {
-    max-height: 46%;
+    /* No height cap here any more: beside the question the board fills its own
+     * column and scrolls. The cap only comes back on a screen too narrow for
+     * two columns, where the panes stack. */
     padding: clamp(.6rem, 1.2vw, 1.2rem);
 }
 
+/* The board is not projector typography.
+ *
+ * The rest of the overlay is sized for the back row; the board is the one part
+ * the teacher reads from their own screen, looking for a name to give a star to.
+ * Sized like the rest it fitted four people to a screen and the name column,
+ * being the only flexible one, collapsed to nothing between the avatar and the
+ * star count — a row of medals with nobody on it. Small rows, and a name that
+ * always gets what is left. */
 .islide-overlay-board .islide-board {
-    gap: clamp(.35rem, .7vw, .7rem);
+    gap: .42rem;
 }
 
+/* Five things and no more: place, avatar, name, stars, the star button. The
+ * name column is minmax(0, 1fr) rather than 1fr so it may shrink below the width
+ * of the text it holds, which is what lets it ellipsise instead of pushing the
+ * star count off the end. */
+.islide-overlay-board .islide-board-row,
 .islide-overlay-board .islide-board-row:has(.islide-award) {
-    grid-template-columns:
-        clamp(2.6rem, 3.8vw, 4.4rem)
-        clamp(2.4rem, 3.4vw, 4rem)
-        1fr
-        auto
-        auto
-        auto;
-}
-
-.islide-overlay-board .islide-board-row {
-    grid-template-columns:
-        clamp(2.6rem, 3.8vw, 4.4rem)
-        clamp(2.4rem, 3.4vw, 4rem)
-        1fr
-        auto
-        auto;
-    padding: clamp(.4rem, .8vw, .9rem) clamp(.7rem, 1.2vw, 1.2rem);
-    font-size: clamp(1.1rem, 1.9vw, 2.2rem);
+    grid-template-columns: 2.45rem 2.25rem minmax(0, 1fr) auto auto;
+    gap: .55rem;
+    padding: .3rem .65rem;
+    font-size: clamp(1.2rem, 1.4vw, 1.6rem);
 }
 
 .islide-overlay-board .islide-board-rank {
-    width: clamp(2.3rem, 3.4vw, 4rem);
-    height: clamp(2.3rem, 3.4vw, 4rem);
-    font-size: clamp(1rem, 1.7vw, 2rem);
+    width: 2.25rem;
+    height: 2.25rem;
+    font-size: .78em;
 }
 
 .islide-overlay-board .islide-board-medal {
-    font-size: clamp(1.2rem, 2vw, 2.3rem);
-}
-
-.islide-overlay-board .islide-board-avatar img {
-    width: clamp(2.2rem, 3.2vw, 3.8rem);
-    height: clamp(2.2rem, 3.2vw, 3.8rem);
-}
-
-.islide-overlay-board .islide-board-stars {
-    padding: .22em .7em;
     font-size: 1em;
 }
 
+.islide-overlay-board .islide-board-avatar img {
+    width: 2.25rem;
+    height: 2.25rem;
+}
+
+.islide-overlay-board .islide-board-name {
+    font-weight: 600;
+}
+
+.islide-overlay-board .islide-board-stars {
+    padding: .1em .5em;
+    font-size: .95em;
+}
+
 .islide-overlay-board .islide-award {
-    min-width: 3.4em;
-    height: 2em;
-    font-size: .72em;
+    min-width: 2.9em;
+    height: 1.9em;
+    font-size: .7em;
+    padding-inline: .4em;
+}
+
+/* Not one of the five. It was the column that pushed the name out. */
+.islide-overlay-board .islide-board-streak {
+    display: none;
 }
 
 /* The locked notice now carries the button that unlocks the question. */

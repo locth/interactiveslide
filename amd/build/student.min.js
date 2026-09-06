@@ -117,7 +117,50 @@ define([
             }
         });
 
-        view.poller.start();
+        bindLobby(view);
+    };
+
+    /**
+     * The screen shown before joining, and the way through it.
+     *
+     * Polling does not start here. A student who has only come to look up how
+     * many stars they have should not be counted as present, should not be paid
+     * the stars for attending, and should not cost the server a request every
+     * two seconds while they read a number that is already on the page.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindLobby = function(view) {
+        var lobby = Util.region(view.root, 'lobby');
+        var live = Util.region(view.root, 'live');
+
+        if (!lobby || !live) {
+            // No lobby in the markup: behave as the player always did.
+            view.poller.start();
+            return;
+        }
+
+        Util.toggle(lobby, true);
+        Util.toggle(live, false);
+
+        Util.actions(view.root, 'enter').forEach(function(button) {
+            button.addEventListener('click', function() {
+                Util.toggle(lobby, false);
+                Util.toggle(live, true);
+                view.poller.start();
+            });
+        });
+
+        Util.actions(view.root, 'leave').forEach(function(button) {
+            button.addEventListener('click', function() {
+                // Reload rather than swap the panels back: the totals on the
+                // first screen were counted when the page was built, and after a
+                // session they are exactly the numbers that have just changed.
+                view.poller.stop();
+                window.location.reload();
+            });
+        });
     };
 
     /**

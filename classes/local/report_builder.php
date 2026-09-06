@@ -29,9 +29,11 @@ class report_builder {
      * One row per student, summed over every session of a deck.
      *
      * @param int $interactiveslideid
+     * @param int $onlyuserid restrict to one participant, for a student reading
+     *        their own report; 0 for everybody
      * @return array{0: array<string, string>, 1: array[]} columns and rows
      */
-    public static function overview_rows(int $interactiveslideid): array {
+    public static function overview_rows(int $interactiveslideid, int $onlyuserid = 0): array {
         global $DB;
 
         // A fixed set of columns, whatever the deck grows into. The per question
@@ -53,6 +55,13 @@ class report_builder {
             'beststreak' => get_string('beststreak', 'mod_interactiveslide'),
         ];
 
+        $params = ['instanceid' => $interactiveslideid];
+        $mine = '';
+        if ($onlyuserid) {
+            $mine = ' AND userid = :onlyuser';
+            $params['onlyuser'] = $onlyuserid;
+        }
+
         $records = $DB->get_records_sql(
             'SELECT userid,
                     COUNT(DISTINCT sessionid) AS sessions,
@@ -63,17 +72,17 @@ class report_builder {
                     SUM(responsecount) AS answered,
                     MAX(beststreak) AS beststreak
                FROM {interactiveslide_participant}
-              WHERE interactiveslideid = :instanceid
+              WHERE interactiveslideid = :instanceid' . $mine . '
            GROUP BY userid
            ORDER BY SUM(totalstars) DESC',
-            ['instanceid' => $interactiveslideid]
+            $params
         );
 
         if (!$records) {
             return [$columns, []];
         }
 
-        $answered = self::interaction_stars($interactiveslideid);
+        $answered = self::interaction_stars($interactiveslideid, $onlyuserid);
         $users = userinfo::load(array_keys($records));
 
         $rows = [];
@@ -105,19 +114,27 @@ class report_builder {
      * behind it; measuring it turns that row into a real check.
      *
      * @param int $interactiveslideid
+     * @param int $onlyuserid restrict to one participant; 0 for everybody
      * @return array<int, int> userid to stars
      */
-    private static function interaction_stars(int $interactiveslideid): array {
+    private static function interaction_stars(int $interactiveslideid, int $onlyuserid = 0): array {
         global $DB;
+
+        $params = ['instanceid' => $interactiveslideid];
+        $mine = '';
+        if ($onlyuserid) {
+            $mine = ' AND r.userid = :onlyuser';
+            $params['onlyuser'] = $onlyuserid;
+        }
 
         $rowset = $DB->get_recordset_sql(
             'SELECT r.userid, SUM(r.stars + r.bonusstars) AS stars
                FROM {interactiveslide_response} r
                JOIN {interactiveslide_round} rd ON rd.id = r.roundid
                JOIN {interactiveslide_session} s ON s.id = rd.sessionid
-              WHERE s.interactiveslideid = :instanceid
+              WHERE s.interactiveslideid = :instanceid' . $mine . '
            GROUP BY r.userid',
-            ['instanceid' => $interactiveslideid]
+            $params
         );
 
         $stars = [];
@@ -152,10 +169,91 @@ class report_builder {
      * activity's own report can show.
      *
      * @param int $courseid
+     * @param int $onlyuserid restrict to one participant, for a student reading
+     *        their own report; 0 for everybody
      * @return array{0: array<string, string>, 1: array[]} columns and rows
      */
-    public static function course_rows(int $courseid): array {
-        return self::build_course_rows(self::readable_decks($courseid));
+    public static function course_rows(int $courseid, int $onlyuserid = 0): array {
+        // Reading someone else's report needs the reports capability on each
+        // deck; reading your own only needs the deck to be one you can open.
+        $decks = $onlyuserid ? self::visible_decks($courseid) : self::readable_decks($courseid);
+
+        return self::build_course_rows($decks, $onlyuserid);
+    }
+
+    /**
+     * One student's star totals, for the screen they see before joining.
+     *
+     * Both numbers are read straight from the participant rows rather than from
+     * the live session, so they are there whether or not a session is running:
+     * a student should be able to look up what they have collected at any time.
+     *
+     * @param int $courseid
+     * @param int $interactiveslideid
+     * @param int $userid
+     * @return array{activity: int, course: int, sessions: int, decks: int}
+     */
+    public static function own_totals(int $courseid, int $interactiveslideid, int $userid): array {
+        global $DB;
+
+        $activity = $DB->get_record_sql(
+            'SELECT COUNT(id) AS sessions, COALESCE(SUM(totalstars), 0) AS stars
+               FROM {interactiveslide_participant}
+              WHERE interactiveslideid = :instanceid AND userid = :userid',
+            ['instanceid' => $interactiveslideid, 'userid' => $userid]
+        );
+
+        $totals = [
+            'activity' => (int)($activity->stars ?? 0),
+            'sessions' => (int)($activity->sessions ?? 0),
+            'course' => 0,
+            'decks' => 0,
+        ];
+
+        $decks = self::visible_decks($courseid);
+        if (!$decks) {
+            return $totals;
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal(array_keys($decks), SQL_PARAMS_NAMED, 'deck');
+        $params['userid'] = $userid;
+
+        $rows = $DB->get_records_sql(
+            "SELECT interactiveslideid, SUM(totalstars) AS stars
+               FROM {interactiveslide_participant}
+              WHERE interactiveslideid $insql AND userid = :userid
+           GROUP BY interactiveslideid",
+            $params
+        );
+
+        foreach ($rows as $row) {
+            $totals['course'] += (int)$row->stars;
+            $totals['decks']++;
+        }
+
+        return $totals;
+    }
+
+    /**
+     * Every deck in a course the current user can open.
+     *
+     * The list a student's own course total is built from. Availability
+     * restrictions and hidden activities are honoured, so a deck they cannot
+     * reach contributes nothing to the number they are shown.
+     *
+     * @param int $courseid
+     * @return array<int, string> activity instance id to name
+     */
+    public static function visible_decks(int $courseid): array {
+        $decks = [];
+
+        foreach (get_fast_modinfo($courseid)->get_instances_of('interactiveslide') as $cm) {
+            if ($cm->uservisible) {
+                $decks[(int)$cm->instance] = format_string($cm->name);
+            }
+        }
+
+        return $decks;
     }
 
     /**
@@ -188,9 +286,10 @@ class report_builder {
      * course, a module info cache or a capability check standing in the way.
      *
      * @param array<int, string> $decks activity instance id to name
+     * @param int $onlyuserid restrict to one participant; 0 for everybody
      * @return array{0: array<string, string>, 1: array[]} columns and rows
      */
-    public static function build_course_rows(array $decks): array {
+    public static function build_course_rows(array $decks, int $onlyuserid = 0): array {
         global $DB;
 
         $columns = ['fullname' => get_string('participant', 'mod_interactiveslide')];
@@ -205,10 +304,16 @@ class report_builder {
 
         [$insql, $params] = $DB->get_in_or_equal(array_keys($decks), SQL_PARAMS_NAMED, 'deck');
 
+        $mine = '';
+        if ($onlyuserid) {
+            $mine = ' AND userid = :onlyuser';
+            $params['onlyuser'] = $onlyuserid;
+        }
+
         $rowset = $DB->get_recordset_sql(
             "SELECT userid, interactiveslideid, SUM(totalstars) AS stars
                FROM {interactiveslide_participant}
-              WHERE interactiveslideid $insql
+              WHERE interactiveslideid $insql" . $mine . "
            GROUP BY userid, interactiveslideid",
             $params
         );
@@ -250,9 +355,11 @@ class report_builder {
      * One row per student for a single session, with a column per question.
      *
      * @param int $sessionid
+     * @param int $onlyuserid restrict to one participant, for a student reading
+     *        their own report; 0 for everybody
      * @return array{0: array<string, string>, 1: array[]} columns and rows
      */
-    public static function session_rows(int $sessionid): array {
+    public static function session_rows(int $sessionid, int $onlyuserid = 0): array {
         global $DB;
 
         $rounds = $DB->get_records_sql(
@@ -278,18 +385,30 @@ class report_builder {
         $columns['correct'] = get_string('correctanswers', 'mod_interactiveslide');
         $columns['answered'] = get_string('answersgiven', 'mod_interactiveslide');
 
-        $participants = $DB->get_records('interactiveslide_participant', ['sessionid' => $sessionid],
+        $conditions = ['sessionid' => $sessionid];
+        if ($onlyuserid) {
+            $conditions['userid'] = $onlyuserid;
+        }
+
+        $participants = $DB->get_records('interactiveslide_participant', $conditions,
             'totalstars DESC, timejoined ASC');
 
         if (!$participants) {
             return [$columns, []];
         }
 
+        $params = ['sessionid' => $sessionid];
+        $mine = '';
+        if ($onlyuserid) {
+            $mine = ' AND userid = :onlyuser';
+            $params['onlyuser'] = $onlyuserid;
+        }
+
         $responses = $DB->get_records_sql(
             'SELECT id, roundid, userid, stars, bonusstars, iscorrect
                FROM {interactiveslide_response}
-              WHERE sessionid = :sessionid',
-            ['sessionid' => $sessionid]
+              WHERE sessionid = :sessionid' . $mine,
+            $params
         );
 
         $byuser = [];
