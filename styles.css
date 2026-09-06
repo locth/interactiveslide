@@ -1014,7 +1014,10 @@
     display: flex;
     flex-direction: column;
     height: calc(100vh - 4rem);
-    min-height: 32rem;
+    /* dvh follows the browser chrome as it hides and shows, which vh does not;
+     * with vh the console is taller than the visible area on a tablet and the
+     * page gains a scroll it should never have had. */
+    height: calc(100dvh - 4rem);
     background: var(--islide-canvas);
     color: var(--islide-ink);
 }
@@ -2738,4 +2741,283 @@
 
 .islide-report th {
     vertical-align: bottom;
+}
+
+/* ---------- Annotation ----------
+ *
+ * Sized for a stylus on a tablet: every control clears the 44px touch target
+ * that a finger needs, and the drawing surface refuses browser gestures so a
+ * stroke is never mistaken for a scroll or a pinch.
+ */
+
+.islide-annotate-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    /* Off by default so the transport controls underneath stay reachable; the
+     * module turns this on with the first tool. */
+    pointer-events: none;
+    touch-action: none;
+}
+
+.islide-annotate-layer canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.islide-annotate-layer[data-tool="pen"],
+.islide-annotate-layer[data-tool="highlight"] {
+    cursor: crosshair;
+}
+
+.islide-annotate-layer[data-tool="eraser"] {
+    cursor: cell;
+}
+
+.islide-annotate-layer[data-tool="laser"] {
+    cursor: none;
+}
+
+.islide-annotate {
+    position: absolute;
+    left: 50%;
+    bottom: .75rem;
+    transform: translateX(-50%);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .4rem;
+    max-width: calc(100% - 1.5rem);
+}
+
+.islide-annotate-tools,
+.islide-annotate-options {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .35rem;
+    border-radius: 999px;
+    background: rgba(17, 24, 39, .82);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+}
+
+.islide-annotate-btn,
+.islide-annotate-chip,
+.islide-annotate-swatch,
+.islide-annotate-nib {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    padding: 0 .6rem;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    color: #f8fafc;
+    font-size: 1.15rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
+}
+
+.islide-annotate-chip {
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.islide-annotate-btn:hover,
+.islide-annotate-chip:hover,
+.islide-annotate-swatch:hover,
+.islide-annotate-nib:hover {
+    background: rgba(255, 255, 255, .16);
+}
+
+.islide-annotate-btn:active,
+.islide-annotate-chip:active,
+.islide-annotate-swatch:active,
+.islide-annotate-nib:active {
+    transform: scale(.94);
+}
+
+.islide-annotate-on {
+    background: rgba(255, 255, 255, .22);
+    border-color: #ffffff;
+}
+
+.islide-annotate-clear {
+    color: #fca5a5;
+}
+
+.islide-annotate-swatch {
+    min-width: 2.75rem;
+    position: relative;
+}
+
+.islide-annotate-swatch::before {
+    content: "";
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 50%;
+    background: var(--islide-swatch);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, .25) inset;
+}
+
+.islide-annotate-nib-dot {
+    width: var(--islide-nib, 8px);
+    height: var(--islide-nib, 8px);
+    border-radius: 50%;
+    background: #f8fafc;
+}
+
+.islide-annotate-divider {
+    width: 1px;
+    height: 1.6rem;
+    margin: 0 .15rem;
+    background: rgba(255, 255, 255, .25);
+}
+
+/* While a tool is in hand the toolbar is the only thing that should react, so
+ * the start badge gets out of the way rather than sitting under the stylus. */
+.islide-present[data-annotating="1"] .islide-start-badge {
+    opacity: .25;
+    pointer-events: none;
+}
+
+@media (max-width: 700px) {
+    .islide-annotate-btn,
+    .islide-annotate-chip,
+    .islide-annotate-swatch,
+    .islide-annotate-nib {
+        min-width: 2.5rem;
+        height: 2.5rem;
+    }
+
+    .islide-annotate {
+        bottom: .4rem;
+    }
+}
+
+/* ---------- Keeping iPadOS out of the way while drawing ----------
+ *
+ * A stylus dragged across the stage was being read by Safari as a text
+ * selection: iPadOS runs Live Text over the slide picture, so the words printed
+ * inside the image are selectable, and a stroke would raise the Copy / Search
+ * callout on top of the drawing.
+ *
+ * touch-action alone does not cover this. Selection, the callout and image
+ * dragging are separate behaviours and each has to be turned off by name.
+ */
+.islide-annotate-layer,
+.islide-annotate,
+.islide-annotate-tools,
+.islide-annotate-options {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* The picture is the thing Live Text reads, and the canvas above it handles all
+ * input anyway, so it takes itself out of the pointer path entirely. */
+.islide-stage-image img {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
+    pointer-events: none;
+}
+
+/* While a tool is in hand nothing on the stage may be selected, including the
+ * question text an overlay puts over the slide. */
+.islide-present[data-annotating="1"] .islide-stage,
+.islide-present[data-annotating="1"] .islide-stage * {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
+/* ---------- The presenter page does not scroll ----------
+ *
+ * A console that fits its screen has nothing to scroll, and a swipe on it is
+ * just a swipe. When the page could scroll, a downward drag was being read by
+ * the browser as a scroll and used to bring its own toolbars back, which on a
+ * tablet looks like full screen collapsing under your hand.
+ *
+ * This cannot stop a system level gesture, but it removes the one the page was
+ * feeding the browser itself.
+ */
+/* Only where the console is bound to the viewport. Below 900px it falls back to
+ * its natural height, and locking the page there would put the transport
+ * controls out of reach. */
+@media (min-width: 901px) {
+    body.mod-interactiveslide-present {
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    body.mod-interactiveslide-present #page,
+    body.mod-interactiveslide-present #region-main {
+        overflow: hidden;
+    }
+}
+
+/* The one place a drag should still move something. */
+.islide-filmstrip,
+.islide-slidelist {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ---------- Presentation mode without the Fullscreen API ----------
+ *
+ * iPadOS does not offer the Fullscreen API to web pages, and a tablet is exactly
+ * where a lecturer wants the deck to fill the glass. So the console lifts itself
+ * out of the page and covers the viewport on its own. This needs no permission,
+ * no API and no gesture the browser could take back, and on a laptop the real
+ * fullscreen goes over the top of it.
+ */
+body.mod-interactiveslide-immersive {
+    overflow: hidden;
+}
+
+body.mod-interactiveslide-immersive .islide-present {
+    position: fixed;
+    inset: 0;
+    height: 100vh;
+    height: 100dvh;
+    z-index: 1050;
+    background: #0b1020;
+}
+
+/* Same trade as real fullscreen: the deck gets the room the filmstrip was using. */
+body.mod-interactiveslide-immersive .islide-filmstrip {
+    display: none;
+}
+
+body.mod-interactiveslide-immersive .islide-present-main {
+    padding: 0;
+    gap: 0;
+}
+
+body.mod-interactiveslide-immersive .islide-stage {
+    border-radius: 0;
+}
+
+body.mod-interactiveslide-immersive .islide-transport {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+}
+
+/* The button reports which state it put the console in. */
+.islide-icon-btn-on {
+    background: var(--islide-accent);
+    border-color: var(--islide-accent);
+    color: #ffffff;
 }

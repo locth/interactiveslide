@@ -27,11 +27,15 @@
 define([
     'core/str',
     'core/notification',
+    'mod_interactiveslide/annotate',
     'mod_interactiveslide/api',
     'mod_interactiveslide/poller',
     'mod_interactiveslide/render',
     'mod_interactiveslide/util'
-], function(Str, Notification, Api, Poller, Render, Util) {
+], function(Str, Notification, Annotate, Api, Poller, Render, Util) {
+
+    /** @var {String} Body class that lifts the console over the whole viewport. */
+    var IMMERSIVE_CLASS = 'mod-interactiveslide-immersive';
 
     var STRING_KEYS = [
         'startsession', 'endsession', 'confirmendsession', 'confirmendsession_desc',
@@ -103,11 +107,41 @@ define([
             }
         });
 
+        view.annotate = Annotate.create(root);
+        offerStandaloneLaunch();
+
         loadDeck(view);
         bindControls(view);
         bindKeyboard(view);
 
         view.poller.start();
+    };
+
+    /**
+     * Declare the console as a standalone web app.
+     *
+     * iPadOS reads these when someone taps Add to Home Screen. Launched from that
+     * icon the page runs with no browser chrome at all, which is the only full
+     * screen on a tablet that a swipe cannot collapse: there is no toolbar left
+     * for the gesture to bring back. The Fullscreen API is still offered for
+     * everything else, and this costs nothing where it is not understood.
+     *
+     * @return {void}
+     */
+    var offerStandaloneLaunch = function() {
+        [
+            ['apple-mobile-web-app-capable', 'yes'],
+            ['apple-mobile-web-app-status-bar-style', 'black-translucent'],
+            ['mobile-web-app-capable', 'yes']
+        ].forEach(function(pair) {
+            if (document.querySelector('meta[name="' + pair[0] + '"]')) {
+                return;
+            }
+            var meta = document.createElement('meta');
+            meta.setAttribute('name', pair[0]);
+            meta.setAttribute('content', pair[1]);
+            document.head.appendChild(meta);
+        });
     };
 
     /**
@@ -303,7 +337,15 @@ define([
         awardFrom('overlay-body');
 
         on('fullscreen', function() {
-            toggleFullscreen(view);
+            togglePresentationMode(view);
+        });
+
+        // Leaving real fullscreen by the system's own escape should also drop the
+        // CSS side, or the console would stay locked over the page.
+        document.addEventListener('fullscreenchange', function() {
+            if (!document.fullscreenElement && document.body.classList.contains(IMMERSIVE_CLASS)) {
+                setPresentationMode(view, false);
+            }
         });
     };
 
@@ -315,8 +357,31 @@ define([
      */
     var bindKeyboard = function(view) {
         document.addEventListener('keydown', function(event) {
-            if (event.target.matches('input, textarea, select')) {
+            // A key event can be aimed at something that is not an element, and
+            // matches() only exists on elements. Typing into a field is what this
+            // is guarding against, so anything else is fair game for a shortcut.
+            var target = event.target;
+            if (target && target.matches && target.matches('input, textarea, select')) {
                 return;
+            }
+
+            // Escape puts the pen down before it touches anything else, then on a
+            // second press leaves presentation mode. One key, one step at a time.
+            if (event.key === 'Escape') {
+                if (view.annotate && view.annotate.isActive()) {
+                    event.preventDefault();
+                    var off = view.root.querySelector('[data-annotate-tool="off"]');
+                    if (off) {
+                        off.click();
+                    }
+                    return;
+                }
+
+                if (document.body.classList.contains(IMMERSIVE_CLASS)) {
+                    event.preventDefault();
+                    setPresentationMode(view, false);
+                    return;
+                }
             }
 
             switch (event.key) {
@@ -355,7 +420,7 @@ define([
 
                 case 'f':
                 case 'F':
-                    toggleFullscreen(view);
+                    togglePresentationMode(view);
                     break;
             }
         });
@@ -433,6 +498,12 @@ define([
         }
 
         highlightThumb(view, state.slide ? state.slide.id : 0);
+
+        // Each slide keeps its own drawing, so moving through the deck parks one
+        // and brings back whatever was on the next.
+        if (view.annotate) {
+            view.annotate.setSlide(state.slide ? state.slide.id : 0);
+        }
 
         // A new round should always pop the overlay back open, and start with
         // the board down so the question has the screen to itself.
@@ -690,29 +761,79 @@ define([
     };
 
     /**
-     * Enter or leave fullscreen on the console.
+     * Make the console take over the screen, and give it back.
+     *
+     * Two mechanisms, because one of them is not available where it is needed
+     * most. The Fullscreen API is used when the browser has it, but iPadOS does
+     * not offer it to web pages at all, and a tablet is exactly where a lecturer
+     * wants the deck to fill the glass. So the console also lifts itself out of
+     * the page and covers the viewport with plain CSS, which needs no permission
+     * and no API, and the two are applied together: the class alone is enough on
+     * a tablet, and on a laptop the real thing goes over the top of it.
      *
      * @param {Object} view
      * @return {void}
      */
-    var toggleFullscreen = function(view) {
-        if (document.fullscreenElement) {
-            if (document.exitFullscreen) {
-                document.exitFullscreen();
-            }
+    var togglePresentationMode = function(view) {
+        setPresentationMode(view, !document.body.classList.contains(IMMERSIVE_CLASS));
+    };
+
+    /**
+     * Apply or drop presentation mode.
+     *
+     * @param {Object} view
+     * @param {Boolean} on
+     * @return {void}
+     */
+    var setPresentationMode = function(view, on) {
+        document.body.classList.toggle(IMMERSIVE_CLASS, on);
+
+        Util.actions(view.root, 'fullscreen').forEach(function(button) {
+            button.setAttribute('aria-pressed', on ? 'true' : 'false');
+            button.classList.toggle('islide-icon-btn-on', on);
+        });
+
+        if (on) {
+            requestNativeFullscreen(view);
+        } else if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+
+        // The stage has just changed size, so the annotation canvases have to be
+        // remeasured or the drawing would land in the wrong place.
+        if (view.annotate) {
+            window.setTimeout(function() {
+                view.annotate.resize();
+            }, 120);
+        }
+    };
+
+    /**
+     * Ask for real fullscreen, quietly accepting a refusal.
+     *
+     * The CSS side has already taken effect by this point, so a browser that
+     * says no costs the presenter nothing.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var requestNativeFullscreen = function(view) {
+        var target = view.root;
+        var request = target.requestFullscreen || target.webkitRequestFullscreen;
+
+        if (!request) {
             return;
         }
 
-        var target = view.root;
-        var request = target.requestFullscreen || target.webkitRequestFullscreen;
-        if (request) {
+        try {
             var result = request.call(target);
             if (result && result.catch) {
-                // Browsers refuse fullscreen outside a user gesture; nothing to report.
                 result.catch(function() {
                     return null;
                 });
             }
+        } catch (e) {
+            return;
         }
     };
 

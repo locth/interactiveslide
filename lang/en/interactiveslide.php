@@ -190,6 +190,23 @@ $string['confirmreplacedeck'] = 'Replace the whole deck?';
 $string['confirmreplacedeck_desc'] = 'Importing a PDF replaces every slide in this activity, together with the interactions and answers attached to them.';
 
 // Presenter console.
+$string['annotateoff'] = 'Stop drawing';
+$string['annotatelaser'] = 'Laser pointer';
+$string['annotatelaserdot'] = 'Dot';
+$string['annotatelaserline'] = 'Trail';
+$string['annotatepen'] = 'Pen';
+$string['annotatehighlight'] = 'Highlighter';
+$string['annotateeraser'] = 'Eraser';
+$string['annotateclear'] = 'Clear the slide';
+$string['annotatestylusonly'] = 'Stylus only: a finger scrolls instead of drawing';
+$string['annotatethin'] = 'Thin';
+$string['annotatemedium'] = 'Medium';
+$string['annotatethick'] = 'Thick';
+$string['colourblue'] = 'Blue';
+$string['colourred'] = 'Red';
+$string['colouryellow'] = 'Yellow';
+$string['colourgreen'] = 'Green';
+$string['colourpink'] = 'Pink';
 $string['backtoactivity'] = 'Back to the activity';
 $string['startsession'] = 'Start session';
 $string['endsession'] = 'End session';

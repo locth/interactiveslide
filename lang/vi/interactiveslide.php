@@ -190,6 +190,23 @@ $string['confirmreplacedeck'] = 'Thay toàn bộ bộ slide?';
 $string['confirmreplacedeck_desc'] = 'Nhập PDF sẽ thay thế mọi slide trong hoạt động này, kèm theo các tương tác và câu trả lời gắn với chúng.';
 
 // Presenter console.
+$string['annotateoff'] = 'Ngừng vẽ';
+$string['annotatelaser'] = 'Bút laser';
+$string['annotatelaserdot'] = 'Chấm';
+$string['annotatelaserline'] = 'Vệt';
+$string['annotatepen'] = 'Bút';
+$string['annotatehighlight'] = 'Bút dạ quang';
+$string['annotateeraser'] = 'Tẩy';
+$string['annotateclear'] = 'Xóa hết trên slide';
+$string['annotatestylusonly'] = 'Chỉ nhận bút cảm ứng: ngón tay dùng để cuộn, không vẽ';
+$string['annotatethin'] = 'Mảnh';
+$string['annotatemedium'] = 'Vừa';
+$string['annotatethick'] = 'Đậm';
+$string['colourblue'] = 'Xanh dương';
+$string['colourred'] = 'Đỏ';
+$string['colouryellow'] = 'Vàng';
+$string['colourgreen'] = 'Xanh lá';
+$string['colourpink'] = 'Hồng';
 $string['backtoactivity'] = 'Quay lại hoạt động';
 $string['startsession'] = 'Bắt đầu phiên';
 $string['endsession'] = 'Kết thúc phiên';

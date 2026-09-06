@@ -79,6 +79,119 @@
                     <span class="islide-start-badge-label">{{#str}}startinteraction, mod_interactiveslide{{/str}}</span>
                 </button>
 
+                <div class="islide-annotate-layer" data-region="annotate-layer" data-tool="off">
+                    <canvas data-region="annotate-ink"></canvas>
+                    <canvas data-region="annotate-laser"></canvas>
+                </div>
+
+                <div class="islide-annotate" data-region="annotate">
+                    <div class="islide-annotate-tools">
+                        <button type="button" class="islide-annotate-btn" data-annotate-tool="off"
+                                aria-pressed="true" title="{{#str}}annotateoff, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9166;</span>
+                            <span class="islide-sr-only">{{#str}}annotateoff, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn" data-annotate-tool="laser"
+                                aria-pressed="false" title="{{#str}}annotatelaser, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9673;</span>
+                            <span class="islide-sr-only">{{#str}}annotatelaser, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn" data-annotate-tool="pen"
+                                aria-pressed="false" title="{{#str}}annotatepen, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9998;</span>
+                            <span class="islide-sr-only">{{#str}}annotatepen, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn" data-annotate-tool="highlight"
+                                aria-pressed="false" title="{{#str}}annotatehighlight, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9646;</span>
+                            <span class="islide-sr-only">{{#str}}annotatehighlight, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn" data-annotate-tool="eraser"
+                                aria-pressed="false" title="{{#str}}annotateeraser, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9003;</span>
+                            <span class="islide-sr-only">{{#str}}annotateeraser, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn" data-annotate-action="stylusonly"
+                                aria-pressed="false"
+                                title="{{#str}}annotatestylusonly, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#9997;</span>
+                            <span class="islide-sr-only">{{#str}}annotatestylusonly, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-btn islide-annotate-clear"
+                                data-annotate-action="clear"
+                                title="{{#str}}annotateclear, mod_interactiveslide{{/str}}">
+                            <span aria-hidden="true">&#128465;</span>
+                            <span class="islide-sr-only">{{#str}}annotateclear, mod_interactiveslide{{/str}}</span>
+                        </button>
+                    </div>
+
+                    <div class="islide-annotate-options" data-region="annotate-options-laser" hidden>
+                        <button type="button" class="islide-annotate-chip" data-annotate-set="lasermode"
+                                data-annotate-value="dot" aria-pressed="true">
+                            {{#str}}annotatelaserdot, mod_interactiveslide{{/str}}
+                        </button>
+                        <button type="button" class="islide-annotate-chip" data-annotate-set="lasermode"
+                                data-annotate-value="line" aria-pressed="false">
+                            {{#str}}annotatelaserline, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+
+                    <div class="islide-annotate-options" data-region="annotate-options-pen" hidden>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="pencolour"
+                                data-annotate-value="#2563eb" style="--islide-swatch: #2563eb"
+                                aria-pressed="true" title="{{#str}}colourblue, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colourblue, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="pencolour"
+                                data-annotate-value="#dc2626" style="--islide-swatch: #dc2626"
+                                aria-pressed="false" title="{{#str}}colourred, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colourred, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="pencolour"
+                                data-annotate-value="#f59e0b" style="--islide-swatch: #f59e0b"
+                                aria-pressed="false" title="{{#str}}colouryellow, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colouryellow, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <span class="islide-annotate-divider" aria-hidden="true"></span>
+                        <button type="button" class="islide-annotate-nib" data-annotate-set="penwidth"
+                                data-annotate-value="2" aria-pressed="false"
+                                title="{{#str}}annotatethin, mod_interactiveslide{{/str}}">
+                            <span class="islide-annotate-nib-dot" style="--islide-nib: 4px"></span>
+                            <span class="islide-sr-only">{{#str}}annotatethin, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-nib" data-annotate-set="penwidth"
+                                data-annotate-value="4" aria-pressed="true"
+                                title="{{#str}}annotatemedium, mod_interactiveslide{{/str}}">
+                            <span class="islide-annotate-nib-dot" style="--islide-nib: 8px"></span>
+                            <span class="islide-sr-only">{{#str}}annotatemedium, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-nib" data-annotate-set="penwidth"
+                                data-annotate-value="8" aria-pressed="false"
+                                title="{{#str}}annotatethick, mod_interactiveslide{{/str}}">
+                            <span class="islide-annotate-nib-dot" style="--islide-nib: 13px"></span>
+                            <span class="islide-sr-only">{{#str}}annotatethick, mod_interactiveslide{{/str}}</span>
+                        </button>
+                    </div>
+
+                    <div class="islide-annotate-options" data-region="annotate-options-highlight" hidden>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="highlightcolour"
+                                data-annotate-value="#fde047" style="--islide-swatch: #fde047"
+                                aria-pressed="true" title="{{#str}}colouryellow, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colouryellow, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="highlightcolour"
+                                data-annotate-value="#86efac" style="--islide-swatch: #86efac"
+                                aria-pressed="false" title="{{#str}}colourgreen, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colourgreen, mod_interactiveslide{{/str}}</span>
+                        </button>
+                        <button type="button" class="islide-annotate-swatch" data-annotate-set="highlightcolour"
+                                data-annotate-value="#f9a8d4" style="--islide-swatch: #f9a8d4"
+                                aria-pressed="false" title="{{#str}}colourpink, mod_interactiveslide{{/str}}">
+                            <span class="islide-sr-only">{{#str}}colourpink, mod_interactiveslide{{/str}}</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="islide-overlay" data-region="overlay" hidden>
                     <div class="islide-overlay-head">
                         <h2 class="islide-overlay-question" data-region="overlay-question"></h2>

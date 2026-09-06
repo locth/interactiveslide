@@ -57,11 +57,43 @@ Built for **Moodle 5.0+**.
   from students who are on that slide.
 
 **Presenting**
-: Full-screen console with a filmstrip, keyboard transport (`←` `→` change slide,
-  `Space` opens and closes the round, `Esc` hides the overlay, `F` full screen)
-  and a live overlay carrying the word cloud, bar chart, timer, answer key and
-  leaderboard. The stage takes each page's own ratio, so nothing is letterboxed,
-  and full screen drops the filmstrip so the deck owns the projector.
+: A presentation mode that fills the window, with a filmstrip, keyboard transport
+  (`←` `→` change slide, `Space` opens and closes the round, `Esc` puts the pen
+  down, then leaves presentation mode, `F` toggles it) and a live overlay carrying
+  the word cloud, bar chart, timer, answer key and leaderboard. The stage takes
+  each page's own ratio, so nothing is letterboxed, and presentation mode drops
+  the filmstrip so the deck owns the projector.
+
+  Presentation mode is drawn by the plugin itself rather than asked of the
+  browser, because iPadOS does not give web pages the Fullscreen API at all — the
+  button used to fail there with nothing to show for it. Now the console pins
+  itself over the whole window in CSS, which works on every browser including
+  iPad, and the real Fullscreen API is still requested on top where it exists
+  (desktop Chrome, Firefox, Safari on macOS) so a laptop plugged into a projector
+  loses its browser chrome as before.
+
+**Annotating**
+: A laser pointer (a dot, or a trail that stays while you are using it and starts
+  fading only after you have stopped for a moment, so a second stroke does not
+  erase the first), a pen in three colours and
+  three thicknesses, a highlighter in three colours, and an eraser that lifts
+  whole strokes. Built for a stylus on a tablet: strokes follow pen pressure,
+  a hand resting on the screen is ignored while the stylus is in use, and the
+  high sample rate of a stylus is used in full so a fast stroke draws as a curve.
+  Each slide keeps its own drawing, and strokes are stored in normalised
+  coordinates so they survive a resize, a rotation and full screen. iPadOS runs
+  Live Text over the slide picture, which turned a stroke into a text selection
+  and put the Copy callout on top of the drawing, so selection, the callout,
+  image dragging and the touch gestures underneath the stylus are all turned off
+  while a tool is in hand — and turned back on the moment it is put down. Escape puts
+  the pen down, and a stylus only mode hands every finger gesture back to the
+  browser, so the page can still be scrolled and swiped without putting the pen
+  away. Nothing is sent anywhere: the room is already looking at it.
+
+  On an iPad the browser's own toolbar is the last thing left, and no web page
+  can hide it — so the console declares itself a standalone web app: added to the
+  Home Screen and launched from that icon, it runs with no browser chrome at all,
+  and there is no toolbar for a swipe to bring back.
 
   The presenter console **is** the projector, so it follows the same rules as the
   room: the answer key appears only after the reveal, and a question can keep its
