@@ -44,6 +44,7 @@ class report_builder {
         // Laid out as an arithmetic: the three sources of stars, then the total
         // they add up to, so any row can be checked by adding across it.
         $columns = [
+            'idnumber' => get_string('useridnumber', 'mod_interactiveslide'),
             'fullname' => get_string('participant', 'mod_interactiveslide'),
             'sessions' => get_string('sessionsattended', 'mod_interactiveslide'),
             'questions' => get_string('questionstars', 'mod_interactiveslide'),
@@ -62,12 +63,16 @@ class report_builder {
             $params['onlyuser'] = $onlyuserid;
         }
 
+        // `manualstars`, not `manual`: MySQL reserved MANUAL in 8.0.31, and an
+        // unquoted reserved word is a syntax error rather than something the
+        // driver can work around. Quoting it would work on MySQL and break on
+        // PostgreSQL, so the alias is simply a word no dialect has taken.
         $records = $DB->get_records_sql(
             'SELECT userid,
                     COUNT(DISTINCT sessionid) AS sessions,
                     SUM(totalstars) AS stars,
                     SUM(attendancestars) AS attendance,
-                    SUM(bonusstars) AS manual,
+                    SUM(bonusstars) AS manualstars,
                     SUM(correctcount) AS correct,
                     SUM(responsecount) AS answered,
                     MAX(beststreak) AS beststreak
@@ -89,12 +94,15 @@ class report_builder {
         foreach ($records as $userid => $record) {
             $userid = (int)$userid;
 
+            $user = $users[$userid] ?? userinfo::placeholder($userid);
+
             $rows[] = [
-                'fullname' => fullname($users[$userid] ?? userinfo::placeholder($userid)),
+                'idnumber' => (string)($user->idnumber ?? ''),
+                'fullname' => fullname($user),
                 'sessions' => (int)$record->sessions,
                 'questions' => $answered[$userid] ?? 0,
                 'attendance' => (int)$record->attendance,
-                'manual' => (int)$record->manual,
+                'manual' => (int)$record->manualstars,
                 'stars' => (int)$record->stars,
                 'correct' => (int)$record->correct,
                 'answered' => (int)$record->answered,
@@ -292,7 +300,10 @@ class report_builder {
     public static function build_course_rows(array $decks, int $onlyuserid = 0): array {
         global $DB;
 
-        $columns = ['fullname' => get_string('participant', 'mod_interactiveslide')];
+        $columns = [
+            'idnumber' => get_string('useridnumber', 'mod_interactiveslide'),
+            'fullname' => get_string('participant', 'mod_interactiveslide'),
+        ];
         foreach ($decks as $instanceid => $name) {
             $columns['deck' . $instanceid] = $name;
         }
@@ -336,7 +347,12 @@ class report_builder {
 
         $rows = [];
         foreach ($totals as $userid => $total) {
-            $row = ['fullname' => fullname($users[$userid] ?? userinfo::placeholder($userid))];
+            $user = $users[$userid] ?? userinfo::placeholder($userid);
+
+            $row = [
+                'idnumber' => (string)($user->idnumber ?? ''),
+                'fullname' => fullname($user),
+            ];
 
             foreach ($decks as $instanceid => $unusedname) {
                 // A deck the student never took part in reads as a dash, so an
@@ -373,7 +389,10 @@ class report_builder {
 
         // Same shape as the overview sheet: breakdown first, then the two
         // sources that belong to no slide, then the total they add up to.
-        $columns = ['fullname' => get_string('participant', 'mod_interactiveslide')];
+        $columns = [
+            'idnumber' => get_string('useridnumber', 'mod_interactiveslide'),
+            'fullname' => get_string('participant', 'mod_interactiveslide'),
+        ];
 
         foreach ($rounds as $round) {
             $columns['round' . $round->id] = self::slide_label($round);
@@ -423,7 +442,12 @@ class report_builder {
         foreach ($participants as $participant) {
             $userid = (int)$participant->userid;
 
-            $row = ['fullname' => fullname($users[$userid] ?? userinfo::placeholder($userid))];
+            $user = $users[$userid] ?? userinfo::placeholder($userid);
+
+            $row = [
+                'idnumber' => (string)($user->idnumber ?? ''),
+                'fullname' => fullname($user),
+            ];
 
             foreach ($rounds as $round) {
                 // A dash rather than a zero: not answering and answering wrongly

@@ -133,6 +133,68 @@ switch ($action) {
         ]);
         break;
 
+    case 'addslide':
+        // One picture becomes one slide at the end of the deck. The same checks
+        // as an imported page: the bytes decide what the file is, not its name
+        // and not the browser.
+        $title = optional_param('title', '', PARAM_TEXT);
+        // Where the teacher is standing in the deck. The new slide lands right
+        // after it, which is what "add" means when you are looking at a slide
+        // and have just realised one is missing after it.
+        $after = optional_param('after', 0, PARAM_INT);
+
+        if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK
+                || !is_uploaded_file($_FILES['image']['tmp_name'])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('erroruploadfailed', 'mod_interactiveslide'),
+            ]);
+        }
+
+        $imageinfo = @getimagesize($_FILES['image']['tmp_name']);
+        $allowedtypes = [
+            IMAGETYPE_PNG => 'png',
+            IMAGETYPE_JPEG => 'jpg',
+            IMAGETYPE_GIF => 'gif',
+            IMAGETYPE_WEBP => 'webp',
+        ];
+
+        if (!$imageinfo || !isset($allowedtypes[$imageinfo[2]])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errornotanimage', 'mod_interactiveslide'),
+            ]);
+        }
+
+        $maxpages = (int)(get_config('mod_interactiveslide', 'maxpages') ?: 200);
+        if ($DB->count_records('interactiveslide_slide', ['interactiveslideid' => $instance->id]) >= $maxpages) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errortoomanypages', 'mod_interactiveslide', $maxpages),
+            ]);
+        }
+
+        $slideid = slide_manager::create_slide((int)$instance->id, 0, $title);
+        slide_manager::store_slide_image(
+            $context,
+            $slideid,
+            $_FILES['image']['tmp_name'],
+            'slide-' . $slideid . '.' . $allowedtypes[$imageinfo[2]],
+            (int)$imageinfo[0],
+            (int)$imageinfo[1]
+        );
+
+        slide_manager::insert_after((int)$instance->id, $slideid, $after);
+
+        $slide = $DB->get_record('interactiveslide_slide', ['id' => $slideid], '*', MUST_EXIST);
+
+        interactiveslide_reply([
+            'status' => 'ok',
+            'slideid' => (int)$slideid,
+            'imageurl' => slide_manager::get_image_url($context, $slide),
+        ]);
+        break;
+
     case 'finish':
         slide_manager::resequence((int)$instance->id);
 

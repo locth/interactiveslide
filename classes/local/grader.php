@@ -143,6 +143,12 @@ class grader {
                 return self::mark_wordcloud($interaction, $payload);
             case interaction_manager::TYPE_MULTICHOICE:
                 return self::mark_multichoice($interaction, $payload);
+            case interaction_manager::TYPE_DROPDOWN:
+                return self::mark_dropdown($interaction, $payload);
+            case interaction_manager::TYPE_VIDEO:
+                // Nothing to submit. Reaching here means a client sent an answer
+                // to a question that never asked one.
+                throw new moodle_exception('errornosubmission', 'mod_interactiveslide');
             case interaction_manager::TYPE_FILLBLANK:
                 return self::mark_fillblank($interaction, $payload);
             case interaction_manager::TYPE_OPENENDED:
@@ -230,6 +236,92 @@ class grader {
                 'iscorrect' => 0,
                 'stars' => 0,
             ]],
+        ];
+    }
+
+    /**
+     * Mark a dropdown submission.
+     *
+     * The same shape as a fill in the blank — several positions in one sentence,
+     * each scored on its own — but each position is answered by choosing from
+     * its own list rather than by typing, so correctness is an option id rather
+     * than a string comparison. Nothing is normalised and nothing is guessed at:
+     * either they picked the option marked correct or they did not.
+     *
+     * @param stdClass $interaction with blanks and their options attached
+     * @param array $payload
+     * @return array{iscorrect: int, stars: int, answers: array[]}
+     * @throws moodle_exception
+     */
+    private static function mark_dropdown(stdClass $interaction, array $payload): array {
+        $submitted = $payload['blanks'] ?? [];
+        if (!is_array($submitted)) {
+            $submitted = [];
+        }
+
+        $byblankid = [];
+        foreach ($submitted as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $byblankid[(int)($item['blankid'] ?? 0)] = (int)($item['optionid'] ?? 0);
+        }
+
+        $answers = [];
+        $stars = 0;
+        $allcorrect = true;
+        $anychoice = false;
+
+        foreach ($interaction->blanks ?? [] as $blank) {
+            $chosenid = (int)($byblankid[(int)$blank->id] ?? 0);
+
+            // Only an option belonging to this position counts. An id from the
+            // next position, or from another question, is simply not found.
+            $chosen = null;
+            foreach ($blank->options ?? [] as $option) {
+                if ((int)$option->id === $chosenid) {
+                    $chosen = $option;
+                    break;
+                }
+            }
+
+            if ($chosen) {
+                $anychoice = true;
+            }
+
+            $iscorrect = 0;
+            if (!empty($interaction->hasanswer) && $chosen) {
+                $iscorrect = (int)$chosen->iscorrect ? 1 : 0;
+            }
+
+            $blankstars = $iscorrect ? max(0, (int)$blank->points) : 0;
+            $stars += $blankstars;
+            if (!$iscorrect) {
+                $allcorrect = false;
+            }
+
+            $answers[] = [
+                'blankid' => (int)$blank->id,
+                'optionid' => $chosen ? (int)$chosen->id : 0,
+                'answertext' => $chosen ? \core_text::substr((string)$chosen->optiontext, 0, 500) : '',
+                'normtext' => $chosen ? text_util::normalise((string)$chosen->optiontext) : '',
+                'iscorrect' => $iscorrect,
+                'stars' => $blankstars,
+            ];
+        }
+
+        if (!$anychoice) {
+            throw new moodle_exception('erroremptyanswer', 'mod_interactiveslide');
+        }
+
+        if (empty($interaction->hasanswer)) {
+            return ['iscorrect' => 0, 'stars' => max(0, (int)$interaction->points), 'answers' => $answers];
+        }
+
+        return [
+            'iscorrect' => $allcorrect ? 1 : 0,
+            'stars' => $stars,
+            'answers' => $answers,
         ];
     }
 

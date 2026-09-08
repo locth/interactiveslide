@@ -31,6 +31,7 @@ define([
     var STRING_KEYS = [
         'saved', 'saving', 'savefailed', 'importing', 'importdone', 'importfailed',
         'pdfjsmissing', 'confirmdeleteslide', 'confirmdeleteslide_desc',
+        'notanimage', 'uploading', 'slideadded', 'uploadfailed',
         'confirmdeleteinteraction', 'confirmdeleteinteraction_desc', 'confirmreplacedeck',
         'confirmreplacedeck_desc', 'deleteslide', 'removeinteraction', 'remove',
         'optionplaceholder', 'answersplaceholder', 'blanklabelplaceholder', 'correct',
@@ -39,7 +40,9 @@ define([
         'unsavedinteraction', 'unsavedinteraction_desc', 'discardchanges', 'typewordcloud',
         'typemultichoice', 'typefillblank', 'clearresponses', 'confirmclearresponses',
         'confirmclearresponses_desc', 'responsescleared', 'typeopenended',
-        'maxwordlength', 'maxanswerlength'
+        'maxwordlength', 'maxanswerlength', 'novideo', 'video',
+        'positions', 'blanks', 'addblank', 'options', 'addoption',
+        'typedropdown', 'typevideo'
     ];
 
     /**
@@ -87,6 +90,7 @@ define([
         };
 
         bindImport(view);
+        bindAddSlide(view);
         bindSlideTools(view);
         bindInspector(view);
 
@@ -141,16 +145,25 @@ define([
             var badge = '';
             if (slide.interaction) {
                 var qtype = slide.interaction.qtype;
-                var letters = {wordcloud: 'W', multichoice: 'M', fillblank: 'F', openended: 'O'};
+                var letters = {
+                    wordcloud: 'W',
+                    multichoice: 'M',
+                    dropdown: 'D',
+                    fillblank: 'F',
+                    openended: 'O',
+                    video: 'V'
+                };
                 var names = {
                     wordcloud: view.strings.typewordcloud,
                     multichoice: view.strings.typemultichoice,
+                    dropdown: view.strings.typedropdown,
                     fillblank: view.strings.typefillblank,
-                    openended: view.strings.typeopenended
+                    openended: view.strings.typeopenended,
+                    video: view.strings.typevideo
                 };
                 badge = '<span class="islide-thumb-badge islide-thumb-' + Util.escape(qtype) + '"' +
                     ' title="' + Util.escape(names[qtype] || qtype) + '">' +
-                    Util.escape(letters[qtype] || '?') + '</span>';
+                    Util.escape(letters[qtype] || qtype.charAt(0).toUpperCase()) + '</span>';
             }
             html += '<div class="islide-thumb islide-thumb-draggable" draggable="true"' +
                 ' data-slideid="' + Number(slide.id) + '" tabindex="0" role="button">' +
@@ -360,6 +373,7 @@ define([
         }
 
         setField(view, 'questiontext', interaction.questiontext);
+        setField(view, 'videourl', interaction.videourl || '');
         setField(view, 'maxentries', interaction.maxentries);
         setField(view, 'maxwordlength', interaction.maxwordlength);
         setField(view, 'points', interaction.points);
@@ -529,10 +543,18 @@ define([
         var hasAnswer = !!(field(view, 'hasanswer') && field(view, 'hasanswer').checked);
 
         var participation = qtype === 'wordcloud' || qtype === 'openended';
+        // Two controls, one question: a dropdown is a choice question answered
+        // from a select, so it wants everything multiple choice wants except the
+        // "more than one" switch a select cannot offer.
+        var haschoices = qtype === 'multichoice' || qtype === 'dropdown';
+        // A video is opened, watched and closed. Nothing is asked and nothing
+        // is scored, so every field about answering is beside the point.
+        var passive = qtype === 'video';
 
+        Util.toggle(Util.region(view.root, 'videofield'), passive);
         Util.toggle(Util.region(view.root, 'participationfields'), participation);
         Util.toggle(Util.region(view.root, 'maxentriesfield'), qtype === 'wordcloud');
-        Util.toggle(Util.region(view.root, 'answertoggle'), !participation && qtype !== 'none');
+        Util.toggle(Util.region(view.root, 'answertoggle'), !participation && !passive && qtype !== 'none');
 
         var lengthlabel = Util.region(view.root, 'maxlengthlabel');
         if (lengthlabel) {
@@ -544,9 +566,26 @@ define([
         // Fill in the blanks always keeps typed answers off the projector until
         // collecting stops, so offering the switch there would promise nothing.
         Util.toggle(Util.region(view.root, 'liveresultwrap'),
-            qtype === 'wordcloud' || qtype === 'multichoice' || qtype === 'openended');
+            qtype === 'wordcloud' || haschoices || qtype === 'openended');
         Util.toggle(Util.region(view.root, 'optionsblock'), qtype === 'multichoice');
-        Util.toggle(Util.region(view.root, 'blanksblock'), qtype === 'fillblank');
+        Util.toggle(Util.region(view.root, 'blanksblock'), qtype === 'fillblank' || qtype === 'dropdown');
+
+        // The same block, two jobs: a list of blanks to type into, or a list of
+        // places in the sentence where a select stands.
+        var blankslabel = Util.region(view.root, 'blankslabel');
+        if (blankslabel) {
+            blankslabel.textContent = qtype === 'dropdown'
+                ? view.strings.positions
+                : view.strings.blanks;
+        }
+        // No Add position button: a position exists because the sentence has a
+        // gap for it, so a button that made one with nowhere to stand would only
+        // be a way to get the two out of step.
+        Util.actions(view.root, 'addblank').forEach(function(button) {
+            button.hidden = qtype === 'dropdown';
+        });
+        var gapshint = Util.region(view.root, 'gapshint');
+        Util.toggle(gapshint, qtype === 'dropdown');
 
         // Fill in the blank scores each blank separately, so the question level
         // difficulty picker would only be misleading there.
@@ -613,6 +652,7 @@ define([
             return;
         }
 
+        var isdropdown = view.root.dataset.qtype === 'dropdown';
         var html = '';
         blanks.forEach(function(blank, index) {
             var answers = (blank.answers || []).join('\n');
@@ -628,7 +668,8 @@ define([
                     '</button>' +
                 '</div>' +
                 '<div class="islide-blank-scoring">' +
-                    '<label class="islide-field islide-field-half">' +
+                    '<label class="islide-field islide-field-half' +
+                            (isdropdown ? ' islide-hidden-field' : '') + '">' +
                         '<span>' + Util.escape(view.strings.acceptedanswers) + '</span>' +
                         '<textarea class="islide-blank-answers" rows="2"' +
                             ' placeholder="' + Util.escape(view.strings.answersplaceholder) + '">' +
@@ -644,9 +685,59 @@ define([
                         '</select>' +
                     '</label>' +
                 '</div>' +
+                (isdropdown ? positionOptions(view, blank) : '') +
                 '</div>';
         });
         container.innerHTML = html;
+    };
+
+    /**
+     * The choice list of one dropdown position.
+     *
+     * The same row as a multiple choice option — text, a correct flag, a remove
+     * button — so the two look and behave alike; only where they live differs.
+     *
+     * @param {Object} view
+     * @param {Object} blank
+     * @return {String}
+     */
+    var positionOptions = function(view, blank) {
+        var letters = 'ABCDEFGHIJ';
+        var options = blank.options && blank.options.length
+            ? blank.options
+            : [{optiontext: '', iscorrect: 0}, {optiontext: '', iscorrect: 0}];
+
+        var html = '<div class="islide-position-options">' +
+            '<span class="islide-field-label">' + Util.escape(view.strings.options) + '</span>' +
+            '<div class="islide-options">';
+
+        options.forEach(function(option, index) {
+            html += '<div class="islide-option-row islide-position-option">' +
+                '<span class="islide-option-letter">' + (letters.charAt(index) || (index + 1)) + '</span>' +
+                '<input type="text" class="islide-option-text" maxlength="500"' +
+                    ' value="' + Util.escape(option.optiontext || '') + '"' +
+                    ' placeholder="' + Util.escape(view.strings.optionplaceholder) + '">' +
+                '<label class="islide-option-correct" title="' + Util.escape(view.strings.correct) + '">' +
+                    '<span class="islide-check-native">' +
+                        '<input type="checkbox" class="islide-option-flag"' +
+                        (Number(option.iscorrect) ? ' checked' : '') + '>' +
+                    '</span>' +
+                    '<span aria-hidden="true">&#10003;</span>' +
+                    '<span class="islide-sr-only">' + Util.escape(view.strings.correct) + '</span>' +
+                '</label>' +
+                '<button type="button" class="islide-icon-btn islide-option-remove"' +
+                    ' data-action="removeoption" title="' + Util.escape(view.strings.remove) + '">' +
+                    '<span aria-hidden="true">&#10005;</span>' +
+                '</button>' +
+                '</div>';
+        });
+
+        html += '</div>' +
+            '<button type="button" class="btn btn-sm btn-outline-primary" data-action="addpositionoption">' +
+            Util.escape(view.strings.addoption) + '</button>' +
+            '</div>';
+
+        return html;
     };
 
     /**
@@ -769,12 +860,17 @@ define([
 
         var form = Util.region(view.root, 'interactionform');
         if (form) {
-            form.addEventListener('input', function() {
+            form.addEventListener('input', function(event) {
                 view.dirty = true;
+                clearStatus(view);
+                if (event.target.matches('[data-field="questiontext"]')) {
+                    syncPositions(view);
+                }
             });
 
             form.addEventListener('change', function(event) {
                 view.dirty = true;
+                clearStatus(view);
                 if (event.target.matches('[data-field="hasanswer"]')) {
                     applyVisibility(view);
                 }
@@ -787,6 +883,17 @@ define([
                     if (optionRow) {
                         optionRow.remove();
                         relabelOptions(view);
+                    }
+                    return;
+                }
+
+                var addToPosition = event.target.closest('[data-action="addpositionoption"]');
+                if (addToPosition) {
+                    var host = addToPosition.closest('.islide-blank-row');
+                    var list = host && host.querySelector('.islide-options');
+                    if (list && list.querySelectorAll('.islide-option-row').length < 10) {
+                        renderBlanks(view, collectBlanksWithExtra(view, host));
+                        applyVisibility(view);
                     }
                     return;
                 }
@@ -820,7 +927,12 @@ define([
                 if (blanks.length >= 10) {
                     return;
                 }
-                blanks.push({label: '', answers: [], difficulty: 'easy'});
+                blanks.push({
+                    label: '',
+                    answers: [],
+                    difficulty: 'easy',
+                    options: [{optiontext: '', iscorrect: 0}, {optiontext: '', iscorrect: 0}]
+                });
                 renderBlanks(view, blanks);
                 applyVisibility(view);
             });
@@ -910,7 +1022,14 @@ define([
      * @return {Array}
      */
     var collectOptions = function(view) {
-        return Array.prototype.map.call(view.root.querySelectorAll('.islide-option-row'),
+        // Scoped to the question's own option block. A dropdown position draws
+        // the same rows inside itself, and those belong to the position.
+        var container = Util.region(view.root, 'options');
+        if (!container) {
+            return [];
+        }
+
+        return Array.prototype.map.call(container.querySelectorAll('.islide-option-row'),
             function(row) {
                 return {
                     optiontext: row.querySelector('.islide-option-text').value,
@@ -925,6 +1044,28 @@ define([
      * @param {Object} view
      * @return {Array}
      */
+    /**
+     * Every position as it stands, with one blank choice added to one of them.
+     *
+     * Read back and redrawn rather than appended in place, so what is on screen
+     * is always what the next save would send.
+     *
+     * @param {Object} view
+     * @param {Element} host the position row that asked for another choice
+     * @return {Array}
+     */
+    var collectBlanksWithExtra = function(view, host) {
+        var rows = Array.prototype.slice.call(view.root.querySelectorAll('.islide-blank-row'));
+        var index = rows.indexOf(host);
+        var blanks = collectBlanks(view);
+
+        if (index >= 0 && blanks[index]) {
+            blanks[index].options = (blanks[index].options || []).concat([{optiontext: '', iscorrect: 0}]);
+        }
+
+        return blanks;
+    };
+
     var collectBlanks = function(view) {
         return Array.prototype.map.call(view.root.querySelectorAll('.islide-blank-row'),
             function(row) {
@@ -937,10 +1078,21 @@ define([
                         return line !== '';
                     });
 
+                var options = Array.prototype.map.call(
+                    row.querySelectorAll('.islide-position-option'),
+                    function(optionrow) {
+                        return {
+                            optiontext: optionrow.querySelector('.islide-option-text').value,
+                            iscorrect: optionrow.querySelector('.islide-option-flag').checked ? 1 : 0
+                        };
+                    }
+                );
+
                 return {
                     label: row.querySelector('.islide-blank-label').value,
                     answers: answers,
-                    difficulty: row.querySelector('.islide-blank-difficulty').value
+                    difficulty: row.querySelector('.islide-blank-difficulty').value,
+                    options: options
                 };
             });
     };
@@ -951,6 +1103,93 @@ define([
      * @param {Object} view
      * @return {void}
      */
+    /**
+     * Keep the dropdown positions in step with the gaps in the sentence.
+     *
+     * The teacher writes the sentence and puts ___ where a select belongs; the
+     * position cards follow. Only the count is touched, and only from the end,
+     * so choices already typed into position 1 survive a gap being added after
+     * them.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var syncPositions = function(view) {
+        if (view.root.dataset.qtype !== 'dropdown') {
+            return;
+        }
+
+        var text = field(view, 'questiontext') ? field(view, 'questiontext').value : '';
+        var gaps = (String(text).match(/_{3,}/g) || []).length;
+        if (gaps < 1 || gaps > 10) {
+            return;
+        }
+
+        var blanks = collectBlanks(view);
+        var before = blanks.length;
+
+        while (blanks.length < gaps) {
+            blanks.push({
+                label: '',
+                answers: [],
+                difficulty: 'easy',
+                options: [{optiontext: '', iscorrect: 0}, {optiontext: '', iscorrect: 0}]
+            });
+        }
+
+        // Shrinking only removes positions nobody has typed into. Deleting a
+        // character in the sentence must not be able to throw away a list of
+        // choices the teacher wrote, and a stray underscore removed mid-edit
+        // would otherwise do exactly that. A position with content stays until
+        // it is removed with its own button.
+        while (blanks.length > gaps && isEmptyPosition(blanks[blanks.length - 1])) {
+            blanks.pop();
+        }
+
+        if (blanks.length === before) {
+            return;
+        }
+
+        renderBlanks(view, blanks);
+        applyVisibility(view);
+    };
+
+    /**
+     * Whether a dropdown position is still untouched.
+     *
+     * @param {Object} blank
+     * @return {Boolean}
+     */
+    var isEmptyPosition = function(blank) {
+        if (String(blank.label || '').trim() !== '') {
+            return false;
+        }
+
+        return (blank.options || []).every(function(option) {
+            return String(option.optiontext || '').trim() === '';
+        });
+    };
+
+    /**
+     * Drop the line under the Save button.
+     *
+     * It carries the last refusal, and it used to stay there while the teacher
+     * fixed exactly what it complained about: they would tick the option it
+     * asked for and still be looking at "mark at least one option as correct".
+     * Any edit now clears it, so the sentence on screen is never about a state
+     * that has already been corrected.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var clearStatus = function(view) {
+        var status = Util.region(view.root, 'savestatus');
+        if (status && status.textContent !== '') {
+            status.textContent = '';
+            status.dataset.tone = '';
+        }
+    };
+
     var save = function(view) {
         var qtype = view.root.dataset.qtype;
         if (!view.selectedId || qtype === 'none') {
@@ -980,6 +1219,7 @@ define([
             maxentries: parseInt(field(view, 'maxentries').value, 10) || 3,
             maxwordlength: parseInt(field(view, 'maxwordlength').value, 10) || 30,
             casesensitive: 0,
+            videourl: field(view, 'videourl') ? field(view, 'videourl').value : '',
             allowretry: field(view, 'allowretry').checked ? 1 : 0,
             options: collectOptions(view),
             blanks: collectBlanks(view)
@@ -998,6 +1238,71 @@ define([
                 status.textContent = error.message || view.strings.savefailed;
                 status.dataset.tone = 'error';
             }
+        });
+    };
+
+    /**
+     * Add one slide from a picture the teacher picks.
+     *
+     * Separate from the PDF wizard on purpose: importing a PDF replaces the
+     * deck, while this appends a single slide and leaves everything else alone,
+     * which is what a teacher wants when one page arrived as a screenshot.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindAddSlide = function(view) {
+        var input = Util.region(view.root, 'slideinput');
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            input.value = '';
+
+            if (!file) {
+                return;
+            }
+            if (!/^image\//.test(file.type)) {
+                Util.toast(view.root, view.strings.notanimage, 'error');
+                return;
+            }
+
+            var form = new FormData();
+            form.append('cmid', view.config.cmid);
+            form.append('sesskey', view.config.sesskey);
+            form.append('action', 'addslide');
+            // Right after whatever the teacher is looking at; with nothing
+            // selected the server puts it at the end.
+            form.append('after', view.selectedId || 0);
+            form.append('image', file, file.name);
+
+            Util.toast(view.root, view.strings.uploading, 'info');
+
+            fetch(view.config.uploadurl, {
+                method: 'POST',
+                body: form,
+                credentials: 'same-origin'
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            }).then(function(payload) {
+                if (payload.status !== 'ok') {
+                    throw new Error(payload.message || payload.error || 'Upload failed');
+                }
+                // Land on the slide that was just added, so the teacher can put
+                // a question on it without hunting for it in the strip.
+                view.selectedId = payload.slideid;
+                return reload(view);
+            }).then(function() {
+                Util.toast(view.root, view.strings.slideadded, 'success');
+                return null;
+            }).catch(function(error) {
+                Util.toast(view.root, error.message || view.strings.uploadfailed, 'error');
+            });
         });
     };
 

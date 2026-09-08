@@ -40,6 +40,12 @@ class interaction_manager {
     /** @var string A free text answer, gathered and shown as a wall of cards. */
     public const TYPE_OPENENDED = 'openended';
 
+    /** @var string A choice question answered from a select rather than a list. */
+    public const TYPE_DROPDOWN = 'dropdown';
+
+    /** @var string A video played on the projector. Nothing is collected. */
+    public const TYPE_VIDEO = 'video';
+
     /** @var int Longest answer an open ended question may accept. */
     public const MAX_OPENENDED_LENGTH = 1000;
 
@@ -64,8 +70,10 @@ class interaction_manager {
         return [
             self::TYPE_WORDCLOUD,
             self::TYPE_MULTICHOICE,
+            self::TYPE_DROPDOWN,
             self::TYPE_FILLBLANK,
             self::TYPE_OPENENDED,
+            self::TYPE_VIDEO,
         ];
     }
 
@@ -79,7 +87,111 @@ class interaction_manager {
      * @return bool
      */
     public static function type_supports_answers(string $qtype): bool {
-        return in_array($qtype, [self::TYPE_MULTICHOICE, self::TYPE_FILLBLANK], true);
+        return in_array($qtype, [self::TYPE_MULTICHOICE, self::TYPE_DROPDOWN, self::TYPE_FILLBLANK], true);
+    }
+
+    /**
+     * Whether this type is answered by picking from a list of options.
+     *
+     * A dropdown is a multiple choice question wearing a select: the same
+     * options, the same marking, the same tally. Only the control differs, so
+     * everything downstream asks this rather than naming the two types.
+     *
+     * @param string $qtype
+     * @return bool
+     */
+    public static function type_has_options(string $qtype): bool {
+        return in_array($qtype, [self::TYPE_MULTICHOICE, self::TYPE_DROPDOWN], true);
+    }
+
+    /**
+     * Turn a pasted video URL into something the page can embed.
+     *
+     * A closed list of providers rather than "put whatever they typed in an
+     * iframe": the URL comes from a person, but the projector it lands on is
+     * pointed at a room, and an arbitrary origin in a frame there is not
+     * something to hand out by default. Anything not recognised is refused when
+     * the question is saved, where the teacher can still fix it, rather than
+     * silently showing nothing during the lecture.
+     *
+     * @param string $url as the teacher pasted it
+     * @return array{kind: string, url: string}|null null when it is not embeddable
+     */
+    public static function video_embed(string $url): ?array {
+        $url = trim($url);
+        if ($url === '') {
+            return null;
+        }
+
+        // Anything that is not plain http(s) is out, which also rules out
+        // javascript: and data: before they reach an attribute.
+        if (!preg_match('~^https?://~i', $url)) {
+            return null;
+        }
+
+        $host = strtolower((string)parse_url($url, PHP_URL_HOST));
+        $host = preg_replace('~^www\.~', '', $host);
+
+        if (in_array($host, ['youtube.com', 'm.youtube.com', 'youtube-nocookie.com', 'youtu.be'], true)) {
+            $id = self::youtube_id($url, $host);
+            if ($id !== null) {
+                // nocookie: the room did not choose to be tracked by being in it.
+                return ['kind' => 'youtube', 'url' => 'https://www.youtube-nocookie.com/embed/' . $id];
+            }
+            return null;
+        }
+
+        if ($host === 'vimeo.com' || $host === 'player.vimeo.com') {
+            if (preg_match('~/(?:video/)?(\d{6,15})~', (string)parse_url($url, PHP_URL_PATH), $m)) {
+                return ['kind' => 'vimeo', 'url' => 'https://player.vimeo.com/video/' . $m[1]];
+            }
+            return null;
+        }
+
+        // A file the browser can play on its own, wherever it is hosted. This is
+        // the escape hatch for a video in the course files or on the university's
+        // own server, which is neither of the two providers above.
+        $path = strtolower((string)parse_url($url, PHP_URL_PATH));
+        if (preg_match('~\.(mp4|m4v|webm|ogv|ogg)$~', $path)) {
+            return ['kind' => 'file', 'url' => $url];
+        }
+
+        return null;
+    }
+
+    /**
+     * The video id out of any of the shapes a YouTube link comes in.
+     *
+     * @param string $url
+     * @param string $host already lowercased and stripped of www.
+     * @return string|null
+     */
+    private static function youtube_id(string $url, string $host): ?string {
+        $path = (string)parse_url($url, PHP_URL_PATH);
+
+        if ($host === 'youtu.be') {
+            $id = ltrim($path, '/');
+        } else if (preg_match('~^/(?:embed|shorts|v|live)/([^/?#]+)~', $path, $m)) {
+            $id = $m[1];
+        } else {
+            parse_str((string)parse_url($url, PHP_URL_QUERY), $query);
+            $id = (string)($query['v'] ?? '');
+        }
+
+        return preg_match('~^[A-Za-z0-9_-]{6,20}$~', $id) ? $id : null;
+    }
+
+    /**
+     * Whether this type collects nothing at all.
+     *
+     * A video is an interaction in the sense that the teacher opens it and the
+     * room looks at it together, but there is no submission and no star to earn.
+     *
+     * @param string $qtype
+     * @return bool
+     */
+    public static function type_is_passive(string $qtype): bool {
+        return $qtype === self::TYPE_VIDEO;
     }
 
     /**
@@ -164,7 +276,15 @@ class interaction_manager {
 
         foreach ($interaction->blanks as $blank) {
             $blank->answerlist = text_util::decode_answers($blank->answers);
+            // Every position gets its own list back, in the order it was written.
+            $blank->options = array_values(array_filter($interaction->options,
+                static fn($option) => (int)$option->blankid === (int)$blank->id));
         }
+
+        // What is left belongs to the question itself, which is what a multiple
+        // choice question has and a dropdown never does.
+        $interaction->options = array_values(array_filter($interaction->options,
+            static fn($option) => (int)$option->blankid === 0));
 
         return $interaction;
     }
@@ -176,7 +296,8 @@ class interaction_manager {
      * @return int
      */
     public static function max_stars(stdClass $interaction): int {
-        if ($interaction->qtype === self::TYPE_FILLBLANK) {
+        if ($interaction->qtype === self::TYPE_FILLBLANK
+                || $interaction->qtype === self::TYPE_DROPDOWN) {
             $total = 0;
             foreach ($interaction->blanks ?? [] as $blank) {
                 $total += (int)$blank->points;
@@ -219,7 +340,10 @@ class interaction_manager {
         $record->autoclose = (int)!empty($data['autoclose']);
         $record->showliveresult = (int)!empty($data['showliveresult']);
         $record->showleaderboard = (int)!empty($data['showleaderboard']);
-        $record->allowmultiple = (int)!empty($data['allowmultiple']);
+        // A select takes one value, so "allow multiple" has no control to live in.
+        $record->allowmultiple = $qtype === self::TYPE_DROPDOWN
+            ? 0
+            : (int)!empty($data['allowmultiple']);
         $record->shuffleoptions = (int)!empty($data['shuffleoptions']);
         $record->maxentries = max(1, min(10, (int)($data['maxentries'] ?? 3)));
 
@@ -230,11 +354,26 @@ class interaction_manager {
         $record->maxwordlength = max(3, min($lengthcap,
             (int)($data['maxwordlength'] ?? $lengthdefault)));
         $record->casesensitive = (int)!empty($data['casesensitive']);
+        $record->videourl = null;
+
+        if ($qtype === self::TYPE_VIDEO) {
+            $videourl = trim((string)($data['videourl'] ?? ''));
+            if (self::video_embed($videourl) === null) {
+                // Refused here, where the teacher is looking at the field, rather
+                // than during the lecture where a blank frame is all they get.
+                throw new moodle_exception('errorvideourl', 'mod_interactiveslide');
+            }
+            $record->videourl = \core_text::substr($videourl, 0, 1333);
+        }
         $record->allowretry = (int)!empty($data['allowretry']);
         $record->timemodified = time();
 
-        // These always pay the same participation stars; difficulty is meaningless there.
-        if (self::type_is_participation($qtype)) {
+        // A video pays nothing, and must not enter the denominator the gradebook
+        // divides by: there is no way for a student to earn it.
+        if (self::type_is_passive($qtype)) {
+            $record->points = 0;
+            $record->difficulty = self::DIFFICULTY_CUSTOM;
+        } else if (self::type_is_participation($qtype)) {
             $record->points = max(0, min(100, (int)($data['points'] ?? 1)));
             $record->difficulty = self::DIFFICULTY_CUSTOM;
         } else if ($hasanswer) {
@@ -268,6 +407,93 @@ class interaction_manager {
     }
 
     /**
+     * Validate and clean the positions of a dropdown question.
+     *
+     * A position is a blank row — it has a place in the sentence, a star value
+     * and a difficulty, exactly as a fill-in-the-blank does — but it is answered
+     * by picking from its own list rather than by typing, so it carries options
+     * instead of accepted answers.
+     *
+     * @param mixed $rawblanks
+     * @param int $hasanswer
+     * @return array[] cleaned position rows, each with an `options` list
+     * @throws moodle_exception
+     */
+    private static function sanitise_positions($rawblanks, int $hasanswer): array {
+        if (!is_array($rawblanks)) {
+            $rawblanks = [];
+        }
+
+        $positions = [];
+        foreach ($rawblanks as $index => $raw) {
+            $difficulty = (string)($raw['difficulty'] ?? 'easy');
+            if (!in_array($difficulty, ['easy', 'medium', 'hard', self::DIFFICULTY_CUSTOM], true)) {
+                $difficulty = 'easy';
+            }
+
+            $options = [];
+            foreach ((array)($raw['options'] ?? []) as $rawoption) {
+                $text = trim(clean_param((string)($rawoption['optiontext'] ?? ''), PARAM_TEXT));
+                if ($text === '') {
+                    continue;
+                }
+                $options[] = [
+                    'optiontext' => \core_text::substr($text, 0, 500),
+                    'iscorrect' => (int)!empty($rawoption['iscorrect']),
+                ];
+                if (count($options) >= self::MAX_OPTIONS) {
+                    break;
+                }
+            }
+
+            if (count($options) < 2) {
+                throw new moodle_exception('errorpositionneedstwooptions', 'mod_interactiveslide',
+                    '', $index + 1);
+            }
+
+            if ($hasanswer) {
+                $correct = array_filter($options, static fn($option) => $option['iscorrect'] === 1);
+                if (!$correct) {
+                    throw new moodle_exception('errorpositionneedsanswer', 'mod_interactiveslide',
+                        '', $index + 1);
+                }
+                // One select, one value: more than one right answer could not be
+                // expressed by the control the student is given.
+                if (count($correct) > 1) {
+                    throw new moodle_exception('errorpositiononecorrect', 'mod_interactiveslide',
+                        '', $index + 1);
+                }
+            } else {
+                foreach ($options as &$option) {
+                    $option['iscorrect'] = 0;
+                }
+                unset($option);
+            }
+
+            $positions[] = [
+                'label' => \core_text::substr(clean_param((string)($raw['label'] ?? ''), PARAM_TEXT), 0, 255),
+                'answers' => '',
+                'points' => $hasanswer
+                    ? self::points_for_difficulty($difficulty, (int)($raw['points'] ?? 1))
+                    : 0,
+                'difficulty' => $difficulty,
+                'casesensitive' => 0,
+                'options' => $options,
+            ];
+
+            if (count($positions) >= self::MAX_BLANKS) {
+                break;
+            }
+        }
+
+        if (!$positions) {
+            throw new moodle_exception('errorneedoneposition', 'mod_interactiveslide');
+        }
+
+        return $positions;
+    }
+
+    /**
      * Validate and clean the multiple choice options of a payload.
      *
      * @param mixed $rawoptions
@@ -278,6 +504,8 @@ class interaction_manager {
      * @throws moodle_exception
      */
     private static function sanitise_options($rawoptions, string $qtype, int $hasanswer, bool $allowmultiple): array {
+        // A dropdown's choices belong to the position they sit in, not to the
+        // question, so they are cleaned with the positions instead.
         if ($qtype !== self::TYPE_MULTICHOICE) {
             return [];
         }
@@ -334,6 +562,9 @@ class interaction_manager {
      * @throws moodle_exception
      */
     private static function sanitise_blanks($rawblanks, string $qtype, int $hasanswer): array {
+        if ($qtype === self::TYPE_DROPDOWN) {
+            return self::sanitise_positions($rawblanks, $hasanswer);
+        }
         if ($qtype !== self::TYPE_FILLBLANK) {
             return [];
         }
@@ -403,6 +634,7 @@ class interaction_manager {
         foreach ($options as $index => $option) {
             $DB->insert_record('interactiveslide_option', (object)[
                 'interactionid' => $interactionid,
+                'blankid' => 0,
                 'sortorder' => $index,
                 'optiontext' => $option['optiontext'],
                 'iscorrect' => $option['iscorrect'],
@@ -423,7 +655,7 @@ class interaction_manager {
         $DB->delete_records('interactiveslide_blank', ['interactionid' => $interactionid]);
 
         foreach ($blanks as $index => $blank) {
-            $DB->insert_record('interactiveslide_blank', (object)[
+            $blankid = (int)$DB->insert_record('interactiveslide_blank', (object)[
                 'interactionid' => $interactionid,
                 'sortorder' => $index,
                 'label' => $blank['label'],
@@ -432,6 +664,18 @@ class interaction_manager {
                 'difficulty' => $blank['difficulty'],
                 'casesensitive' => $blank['casesensitive'],
             ]);
+
+            // A dropdown position owns its choices; they are written now that
+            // the row they point at has an id.
+            foreach ($blank['options'] ?? [] as $order => $option) {
+                $DB->insert_record('interactiveslide_option', (object)[
+                    'interactionid' => $interactionid,
+                    'blankid' => $blankid,
+                    'sortorder' => $order,
+                    'optiontext' => $option['optiontext'],
+                    'iscorrect' => $option['iscorrect'],
+                ]);
+            }
         }
     }
 
@@ -546,17 +790,38 @@ class interaction_manager {
         $blanks = [];
         foreach ($interaction->blanks ?? [] as $blank) {
             $answerlist = $blank->answerlist ?? text_util::decode_answers($blank->answers);
+
+            // A dropdown position sends its choices; which one is right is held
+            // back until the reveal, exactly as an answer key is.
+            $positionoptions = [];
+            foreach ($blank->options ?? [] as $option) {
+                $positionoptions[] = [
+                    'id' => (int)$option->id,
+                    'optiontext' => (string)$option->optiontext,
+                    'iscorrect' => $revealed ? (int)$option->iscorrect : 0,
+                ];
+            }
+
             $blanks[] = [
                 'id' => (int)$blank->id,
                 'label' => (string)$blank->label,
                 'points' => (int)$blank->points,
                 'answers' => $revealed ? array_values($answerlist) : [],
+                'options' => $positionoptions,
             ];
+        }
+
+        // Resolved on every render rather than stored: the page never receives a
+        // URL that has not been through the provider list.
+        $video = null;
+        if ($interaction->qtype === self::TYPE_VIDEO) {
+            $video = self::video_embed((string)($interaction->videourl ?? ''));
         }
 
         return [
             'id' => (int)$interaction->id,
             'qtype' => (string)$interaction->qtype,
+            'video' => $video,
             'questiontext' => (string)$interaction->questiontext,
             'hasanswer' => (int)$interaction->hasanswer,
             'points' => (int)$interaction->points,

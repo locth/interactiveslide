@@ -143,6 +143,11 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $data = (object)$data;
         $oldid = $data->id;
         $data->interactionid = $this->get_new_parentid('interactiveslide_interaction');
+        // A dropdown choice belongs to a position; 0 means it belongs to the
+        // question, which is every multiple choice option.
+        $data->blankid = !empty($data->blankid)
+            ? ($this->get_mappingid('interactiveslide_blank', $data->blankid) ?: 0)
+            : 0;
 
         $newid = $DB->insert_record('interactiveslide_option', $data);
         $this->set_mapping('interactiveslide_option', $oldid, $newid);

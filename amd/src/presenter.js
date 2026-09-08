@@ -45,7 +45,7 @@ define([
         'beststreak', 'leaderboard', 'stars', 'sessionstarted', 'sessionended',
         'roundopened', 'roundclosedtoast', 'answerrevealed', 'awardstar', 'awardreason', 'starawarded',
         'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers',
-        'showresultscreen', 'hideresultscreen'
+        'showresultscreen', 'hideresultscreen', 'novideo', 'video'
     ];
 
     /**
@@ -725,7 +725,10 @@ define([
         } else {
             Render.results(body, hasRound ? state.results : null, view.strings, {
                 large: true,
-                award: view.canAward
+                award: view.canAward,
+                // A video round has no tally to draw; the renderer needs the
+                // interaction itself to know what to put on the projector.
+                interaction: hasRound ? state.interaction : null
             });
         }
 

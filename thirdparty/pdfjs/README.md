@@ -40,24 +40,25 @@ mod/interactiveslide/thirdparty/pdfjs/standard_fonts/
 The plugin detects them on disk and only points pdf.js at them when they exist.
 Most decks with embedded fonts, including Vietnamese ones, work without this.
 
-## If the import still fails
+## The `.mjs` MIME type
 
-Open the browser console during an import. A message like
+Browsers refuse an ES module unless the response carries a JavaScript MIME type,
+and a good many servers still send `.mjs` as `application/octet-stream` because
+it is missing from their type map. That used to break the import wizard with:
 
-> Failed to load module script: expected a JavaScript MIME type but the server
-> responded with "text/plain"
+> Failed to load module script: Expected a JavaScript-or-Wasm module script but
+> the server responded with a MIME type of "application/octet-stream"
 
-means your web server does not serve `.mjs` as JavaScript — Apache and nginx both
-lacked that mapping until recently. **Rename both files to `.js`**:
+**Nothing needs doing about this any more.** The plugin serves both files through
+`mod/interactiveslide/pdfjs.php`, which sets the header itself, and only falls
+back to the plain URL if that build loads there too. The fix is in the plugin
+because on a shared university install the person who needs the import wizard is
+rarely the person who can edit the server config.
 
-```
-pdf.mjs        ->  pdf.js
-pdf.worker.mjs ->  pdf.worker.js
-```
-
-They are still ES modules; only the extension changes, and the plugin looks for
-that pairing too. Fixing the server's MIME map (`AddType text/javascript .mjs`
-for Apache, `types { text/javascript mjs; }` for nginx) works equally well.
+If you would rather the browser fetch the files directly — one less PHP process
+per import — add the mapping to your server (`AddType text/javascript .mjs` for
+Apache, `types { text/javascript mjs; }` for nginx). Renaming both files to `.js`
+also still works; the plugin looks for that pairing.
 
 ## Where the plugin looks
 

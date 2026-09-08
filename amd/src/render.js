@@ -74,11 +74,20 @@ define([
             }
 
             switch (data.qtype) {
+                case 'video':
+                    // Nothing was collected; the video is the content.
+                    container.innerHTML = videoEmbed(options.interaction || {}, strings);
+                    break;
                 case 'wordcloud':
                     renderWordcloud(container, data, strings, options);
                     break;
                 case 'multichoice':
                     renderChoices(container, data, strings, options);
+                    break;
+                case 'dropdown':
+                    // One tally per position in the sentence, which is the same
+                    // shape a fill in the blank produces.
+                    renderBlanks(container, data, strings, options);
                     break;
                 case 'fillblank':
                     renderBlanks(container, data, strings, options);
@@ -282,6 +291,38 @@ define([
      * @param {Object} strings
      * @return {void}
      */
+    /**
+     * The markup for an embedded video.
+     *
+     * The URL is not taken from the page: the server resolves what the teacher
+     * pasted against a closed list of providers and sends the embeddable form,
+     * or nothing. Nothing here builds a URL, so nothing here can be talked into
+     * framing an arbitrary origin.
+     *
+     * @param {Object} interaction carrying a resolved `video` descriptor
+     * @param {Object} strings
+     * @return {String}
+     */
+    var videoEmbed = function(interaction, strings) {
+        var video = interaction.video;
+
+        if (!video || !video.url) {
+            return '<div class="islide-empty-note">' + esc(strings.novideo) + '</div>';
+        }
+
+        if (video.kind === 'file') {
+            return '<div class="islide-video">' +
+                '<video controls playsinline src="' + esc(video.url) + '"></video>' +
+                '</div>';
+        }
+
+        return '<div class="islide-video islide-video-frame">' +
+            '<iframe src="' + esc(video.url) + '" title="' + esc(strings.video) + '"' +
+            ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"' +
+            ' allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>' +
+            '</div>';
+    };
+
     var prompt = function(container, interaction, strings) {
         redrawIfChanged(container, ['prompt', interaction], function() {
             if (!interaction) {
@@ -292,7 +333,29 @@ define([
             var letters = 'ABCDEFGHIJ';
             var html = '';
 
-            if (interaction.qtype === 'multichoice' && interaction.options.length) {
+            if (interaction.qtype === 'video') {
+                html = videoEmbed(interaction, strings);
+                container.innerHTML = html;
+                return;
+            }
+
+            if (interaction.qtype === 'dropdown' && interaction.blanks.length) {
+                html = '<ol class="islide-promptlist islide-promptlist-blanks">';
+                interaction.blanks.forEach(function(blank, index) {
+                    html += '<li class="islide-promptlist-item islide-promptlist-choices">' +
+                        '<span class="islide-promptlist-index">' + (index + 1) + '</span>' +
+                        '<span class="islide-bar-text">';
+                    (blank.options || []).forEach(function(option) {
+                        html += '<span class="islide-chip">' + esc(option.optiontext) + '</span>';
+                    });
+                    html += '</span>' +
+                        '<span class="islide-promptlist-stars">' + Number(blank.points) +
+                            '<span class="islide-star" aria-hidden="true">&#9733;</span></span>' +
+                        '</li>';
+                });
+                html += '</ol>';
+
+            } else if (interaction.qtype === 'multichoice' && interaction.options.length) {
                 html = '<ul class="islide-promptlist">';
                 interaction.options.forEach(function(option, index) {
                     html += '<li class="islide-promptlist-item">' +

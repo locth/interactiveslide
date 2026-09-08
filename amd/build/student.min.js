@@ -41,7 +41,7 @@ define([
         'beststreak', 'wordplaceholder', 'blankplaceholder', 'online', 'offline', 'connecting',
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
-        'watchtheprojector', 'watchtheprojector_desc'
+        'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position'
     ];
 
     /**
@@ -361,7 +361,10 @@ define([
 
         if (question) {
             question.textContent = state.interaction.questiontext || '';
-            question.hidden = !state.interaction.questiontext;
+            // A dropdown carries the sentence inside the form, with the selects
+            // in it. Repeating it above would show the same words twice.
+            question.hidden = !state.interaction.questiontext
+                || state.interaction.qtype === 'dropdown';
         }
 
         var answered = !!(state.myresponse && state.myresponse.submitted);
@@ -374,8 +377,10 @@ define([
 
         setFormEnabled(form, canAnswer);
 
-        // Nothing to fill in means nothing to submit.
-        var hasInputs = !!form.querySelector('input, textarea');
+        // Nothing to fill in means nothing to submit — which is exactly the case
+        // for a video, and exactly not the case for a dropdown, whose only
+        // control is a select.
+        var hasInputs = !!form.querySelector('input, textarea, select');
 
         if (submitButton) {
             submitButton.hidden = !canAnswer || !hasInputs;
@@ -450,6 +455,21 @@ define([
     };
 
     /**
+     * Split a sentence on the gaps the teacher left.
+     *
+     * A run of three or more underscores marks a position, because that is what
+     * a teacher writing "Toc do cua RAM ___ Toc do cua Cache" has already typed.
+     * The result is one more piece than there are gaps, so a piece and a select
+     * can be laid down in turn.
+     *
+     * @param {String} text
+     * @return {String[]}
+     */
+    var splitOnGaps = function(text) {
+        return String(text || '').split(/_{3,}/);
+    };
+
+    /**
      * Build the inputs for the current question type.
      *
      * @param {Object} view
@@ -506,6 +526,70 @@ define([
                     '</label>';
             });
             html += '</div>';
+
+        } else if (interaction.qtype === 'dropdown') {
+            // The selects sit where the teacher left the gaps, so the student
+            // reads one sentence rather than a sentence and then a detached list
+            // of questions about it.
+            var chosenAt = {};
+            if (mine) {
+                mine.answers.forEach(function(part) {
+                    chosenAt[part.blankid] = part.optionid;
+                });
+            }
+
+            var pieces = splitOnGaps(interaction.questiontext);
+            html += '<div class="islide-inlineblanks">';
+
+            pieces.forEach(function(piece, index) {
+                html += '<span class="islide-inlinetext">' + esc(piece) + '</span>';
+
+                var blank = interaction.blanks[index];
+                if (!blank) {
+                    return;
+                }
+
+                html += '<span class="islide-inlineslot">' +
+                    '<select class="islide-dropdownselect" data-blankid="' + Number(blank.id) + '"' +
+                    ' aria-label="' + esc(view.strings.position + ' ' + (index + 1)) + '">' +
+                    '<option value="">' + esc(view.strings.chooseanswer) + '</option>';
+
+                (blank.options || []).forEach(function(option) {
+                    html += '<option value="' + Number(option.id) + '"' +
+                        (chosenAt[blank.id] === option.id ? ' selected' : '') + '>' +
+                        esc(option.optiontext) + '</option>';
+                });
+
+                html += '</select></span>';
+            });
+
+            // A position the sentence has no gap for still needs its select, or
+            // there would be no way to answer it at all.
+            interaction.blanks.forEach(function(blank, index) {
+                if (index < pieces.length - 1) {
+                    return;
+                }
+                html += '<span class="islide-inlineslot">' +
+                    '<select class="islide-dropdownselect" data-blankid="' + Number(blank.id) + '"' +
+                    ' aria-label="' + esc(view.strings.position + ' ' + (index + 1)) + '">' +
+                    '<option value="">' + esc(view.strings.chooseanswer) + '</option>';
+                (blank.options || []).forEach(function(option) {
+                    html += '<option value="' + Number(option.id) + '"' +
+                        (chosenAt[blank.id] === option.id ? ' selected' : '') + '>' +
+                        esc(option.optiontext) + '</option>';
+                });
+                html += '</select></span>';
+            });
+
+            html += '</div>';
+
+        } else if (interaction.qtype === 'video') {
+            // The video plays on the projector. Eighty phones starting the same
+            // clip at slightly different moments is not a thing to do to a room.
+            html += '<div class="islide-stale">' +
+                '<p>' + esc(view.strings.watchtheprojector) + '</p>' +
+                '<p class="islide-muted">' + esc(view.strings.watchtheprojector_desc) + '</p>' +
+                '</div>';
 
         } else if (interaction.qtype === 'openended') {
             var written = (mine && mine.answers.length) ? mine.answers[0].text : '';
@@ -583,7 +667,7 @@ define([
      * @return {void}
      */
     var setFormEnabled = function(form, enabled) {
-        Array.prototype.forEach.call(form.querySelectorAll('input, textarea'), function(input) {
+        Array.prototype.forEach.call(form.querySelectorAll('input, textarea, select'), function(input) {
             input.disabled = !enabled;
         });
         form.classList.toggle('islide-form-locked', !enabled);
@@ -626,6 +710,22 @@ define([
                 }
             );
             return optionids.length ? {optionids: optionids} : null;
+        }
+
+        if (qtype === 'dropdown') {
+            var picks = Array.prototype.map.call(
+                form.querySelectorAll('.islide-dropdownselect[data-blankid]'),
+                function(select) {
+                    return {
+                        blankid: parseInt(select.dataset.blankid, 10),
+                        optionid: parseInt(select.value, 10) || 0
+                    };
+                }
+            );
+            var anyPick = picks.some(function(pick) {
+                return pick.optionid > 0;
+            });
+            return anyPick ? {blanks: picks} : null;
         }
 
         if (qtype === 'fillblank') {

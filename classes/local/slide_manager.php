@@ -206,6 +206,44 @@ class slide_manager {
      * @param int[] $orderedids slide ids in the wanted order
      * @return void
      */
+    /**
+     * Put a freshly created slide immediately after another one.
+     *
+     * Expressed as a reorder rather than as arithmetic on sortorder: reorder
+     * already renumbers the whole deck from zero, so there is no gap to find and
+     * no two slides can end up sharing a position.
+     *
+     * @param int $interactiveslideid
+     * @param int $slideid the new slide
+     * @param int $afterid the slide it should follow; 0 or unknown puts it last
+     * @return void
+     */
+    public static function insert_after(int $interactiveslideid, int $slideid, int $afterid): void {
+        global $DB;
+
+        $existing = $DB->get_records_menu('interactiveslide_slide',
+            ['interactiveslideid' => $interactiveslideid], 'sortorder ASC, id ASC', 'id, id AS sameid');
+
+        $order = [];
+        foreach (array_keys($existing) as $id) {
+            $id = (int)$id;
+            if ($id === $slideid) {
+                // Wherever create_slide parked it; the loop below places it.
+                continue;
+            }
+            $order[] = $id;
+            if ($id === $afterid) {
+                $order[] = $slideid;
+            }
+        }
+
+        if (!in_array($slideid, $order, true)) {
+            $order[] = $slideid;
+        }
+
+        self::reorder($interactiveslideid, $order);
+    }
+
     public static function reorder(int $interactiveslideid, array $orderedids): void {
         global $DB;
 

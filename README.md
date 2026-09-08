@@ -16,6 +16,12 @@ Built for **Moodle 5.0+**.
   each page is uploaded as one slide. The server needs no Ghostscript, no
   ImageMagick and no `exec()` permission, so this works on shared hosting.
 
+  A single slide can also be added from a picture — a screenshot, a photo of a
+  whiteboard, a page that arrived on its own. It lands immediately after the
+  slide being looked at, which is where a missing page is noticed, and nothing
+  else in the deck moves. Importing a PDF replaces the
+  deck; adding a picture does not.
+
   Pages are encoded as JPEG by default. Every student downloads every slide they
   are shown, once, which makes this the largest single bandwidth cost of a big
   session: a templated lecture slide with a gradient background measures about
@@ -34,11 +40,35 @@ Built for **Moodle 5.0+**.
     stars.
   - **Multiple choice** — optional answer key, single or multiple correct
     options, optional live tally while students answer.
+  - **Dropdown** — selects standing in the sentence itself, as many as the
+    sentence needs. The teacher writes `___` wherever one belongs and a position
+    appears for it, each with its own list of choices and its own star value;
+    the student reads one sentence with the gaps filled in rather than a
+    sentence followed by a detached list of questions about it. Scored per
+    position, like fill in the blanks, and tallied per position on the
+    projector so the room sees which choice each gap drew.
+
+    Positions follow the gaps as they are typed, and only that way — there is no
+    button to add one, because a position with nowhere to stand is only a way for
+    the two to get out of step. They grow with the gaps but shrink carefully: a
+    gap deleted mid-edit removes a position only while nothing has been typed
+    into it, so a stray keystroke cannot throw away a list of choices.
   - **Fill in the blanks** — several blanks on one slide, each with its own list
     of accepted answers and its own star value.
   - **Open ended** — a written answer, gathered into a wall of cards on the
     projector. No answer key, so everyone who writes something earns the
     participation stars; identical replies are badged with how often they came up.
+  - **Video** — opened with the same Start button as any other interaction, but
+    what fills the overlay is an embedded video rather than a question. Nothing
+    is collected and no stars are paid, so it never enters the total the
+    gradebook divides by. The phones say to look up rather than playing eighty
+    copies of the same clip a moment apart.
+
+    Links are resolved against a closed list — YouTube, Vimeo, or a direct link
+    to an `.mp4`, `.webm` or `.ogv` file — and a link that matches none of them
+    is refused while the teacher is still looking at the field, not during the
+    lecture. YouTube is embedded through `youtube-nocookie.com`: the room did not
+    choose to be tracked by being in it.
 
 **Scoring**
 : Difficulty presets are configured site-wide and default to Easy = 1,
@@ -151,14 +181,21 @@ Built for **Moodle 5.0+**.
 **Reporting**
 : Three views from one picker: every Interactive Slide activity in the course
   with a column per deck and a semester total, this deck across every session on
-  a fixed set of columns, or a single session with a column per question. The two
-  summary sheets are laid out as an arithmetic — question stars, attendance stars
-  and hand awarded stars, then the total they add up to — so any row can be
-  checked by adding across it. Both sheets
-  are laid out as an arithmetic — the per slide breakdown, then attendance stars
-  and hand awarded stars, then the total they add up to — so any row can be
-  checked by adding across it. Downloadable as CSV, Excel or ODS. Stars map to a
-  gradebook grade by one of four rules when a session ends.
+  a fixed set of columns, or a single session with a column per question. Each
+  sheet opens with the student's ID number and their name, so it lines up with
+  the class list a lecturer already marks from. The summary sheets are laid out
+  as an arithmetic — question stars, attendance stars and hand awarded stars,
+  then the total they add up to — so any row can be checked by adding across it.
+  Downloadable as CSV, Excel or ODS. Stars map to a gradebook grade by one of
+  four rules when a session ends.
+
+  A session can be deleted from its own report, which takes the stars it awarded
+  with it. Every star a student holds is a row belonging to a session, so there
+  is nothing left over to recalculate: the totals for the activity and for the
+  course drop by exactly what that session paid out, and the gradebook is
+  rebuilt from what remains. It needs the editing capability rather than the
+  reading one, it will not touch a session that is still running, and it is
+  logged — it is the one action here that destroys results a student earned.
 
 ---
 
@@ -186,6 +223,10 @@ If your Moodle has no usable copy, download `pdfjs-<version>-dist.zip` from
 `build/pdf.mjs` and `build/pdf.worker.mjs` into
 `mod/interactiveslide/thirdparty/pdfjs/`. Since pdf.js v4 there is no UMD
 `pdf.min.js` any more — ES modules are all that ship.
+
+The plugin serves those two files through `pdfjs.php` so that a server which
+does not know the `.mjs` extension — many send it as `application/octet-stream`,
+which browsers refuse for an ES module — needs no configuration change.
 
 Full instructions, including the fix for a web server that will not serve `.mjs`
 as JavaScript, are in [`thirdparty/pdfjs/README.md`](thirdparty/pdfjs/README.md).

@@ -56,7 +56,7 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="slideid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
-        <FIELD NAME="qtype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="wordcloud" SEQUENCE="false" COMMENT="wordcloud|multichoice|fillblank"/>
+        <FIELD NAME="qtype" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="wordcloud" SEQUENCE="false" COMMENT="wordcloud|multichoice|dropdown|fillblank|openended|video"/>
         <FIELD NAME="questiontext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="hasanswer" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="difficulty" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="easy" SEQUENCE="false" COMMENT="easy|medium|hard|custom"/>
@@ -70,6 +70,7 @@
         <FIELD NAME="maxentries" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="3" SEQUENCE="false" COMMENT="Wordcloud: number of words each student may submit."/>
         <FIELD NAME="maxwordlength" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="30" SEQUENCE="false"/>
         <FIELD NAME="casesensitive" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="videourl" TYPE="char" LENGTH="1333" NOTNULL="false" SEQUENCE="false" COMMENT="Video interaction: the URL the teacher pasted."/>
         <FIELD NAME="allowretry" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Allow a student to change their answer while the round is open."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -84,6 +85,7 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="interactionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="blankid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Dropdown: the position this choice belongs to. 0 for multiple choice."/>
         <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="optiontext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="iscorrect" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -92,6 +94,9 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="interactionid" TYPE="foreign" FIELDS="interactionid" REFTABLE="interactiveslide_interaction" REFFIELDS="id"/>
       </KEYS>
+      <INDEXES>
+        <INDEX NAME="blankid" UNIQUE="false" FIELDS="blankid"/>
+      </INDEXES>
     </TABLE>
 
     <TABLE NAME="interactiveslide_blank" COMMENT="Fill in the blank definitions, one row per blank.">

@@ -42,6 +42,11 @@
         </div>
         <div class="islide-editor-actions">
             <label class="btn btn-outline-primary islide-import-label">
+                {{#str}}addslide, mod_interactiveslide{{/str}}
+                <input type="file" accept="image/png,image/jpeg,image/gif,image/webp"
+                       data-region="slideinput" class="islide-file-input">
+            </label>
+            <label class="btn btn-outline-primary islide-import-label">
                 {{#str}}importpdf, mod_interactiveslide{{/str}}
                 <input type="file" accept="application/pdf,.pdf" data-region="pdfinput" class="islide-file-input">
             </label>
@@ -117,6 +122,10 @@
                         <span class="islide-type-icon" aria-hidden="true">&#9636;</span>
                         <span class="islide-type-label">{{#str}}typemultichoice, mod_interactiveslide{{/str}}</span>
                     </button>
+                    <button type="button" class="islide-type" data-qtype="dropdown" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#9662;</span>
+                        <span class="islide-type-label">{{#str}}typedropdown, mod_interactiveslide{{/str}}</span>
+                    </button>
                     <button type="button" class="islide-type" data-qtype="fillblank" role="radio" aria-checked="false">
                         <span class="islide-type-icon" aria-hidden="true">&#9251;</span>
                         <span class="islide-type-label">{{#str}}typefillblank, mod_interactiveslide{{/str}}</span>
@@ -124,6 +133,10 @@
                     <button type="button" class="islide-type" data-qtype="openended" role="radio" aria-checked="false">
                         <span class="islide-type-icon" aria-hidden="true">&#128172;</span>
                         <span class="islide-type-label">{{#str}}typeopenended, mod_interactiveslide{{/str}}</span>
+                    </button>
+                    <button type="button" class="islide-type" data-qtype="video" role="radio" aria-checked="false">
+                        <span class="islide-type-icon" aria-hidden="true">&#9654;</span>
+                        <span class="islide-type-label">{{#str}}typevideo, mod_interactiveslide{{/str}}</span>
                     </button>
                 </div>
 
@@ -133,6 +146,13 @@
                         <span>{{#str}}questiontext, mod_interactiveslide{{/str}}</span>
                         <textarea data-field="questiontext" rows="2" maxlength="1000"
                                   placeholder="{{#str}}questiontextplaceholder, mod_interactiveslide{{/str}}"></textarea>
+                    </label>
+
+                    <label class="islide-field" data-region="videofield" hidden>
+                        <span>{{#str}}videourl, mod_interactiveslide{{/str}}</span>
+                        <input type="url" data-field="videourl" maxlength="1333"
+                               placeholder="{{#str}}videourlplaceholder, mod_interactiveslide{{/str}}">
+                        <small class="islide-field-hint">{{#str}}videourl_help, mod_interactiveslide{{/str}}</small>
                     </label>
 
                     <div class="islide-field-group" data-region="participationfields" hidden>
@@ -197,7 +217,10 @@
                     </div>
 
                     <div data-region="blanksblock" hidden>
-                        <span class="islide-field-label">{{#str}}blanks, mod_interactiveslide{{/str}}</span>
+                        <span class="islide-field-label" data-region="blankslabel">{{#str}}blanks, mod_interactiveslide{{/str}}</span>
+                        <p class="islide-field-hint" data-region="gapshint" hidden>
+                            {{#str}}gapshint, mod_interactiveslide{{/str}}
+                        </p>
                         <div class="islide-blanks" data-region="blanks"></div>
                         <button type="button" class="btn btn-sm btn-outline-primary" data-action="addblank">
                             {{#str}}addblank, mod_interactiveslide{{/str}}

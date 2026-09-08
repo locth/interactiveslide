@@ -138,11 +138,44 @@ class session_manager {
 
         $sessionids = $DB->get_fieldset_select('interactiveslide_session', 'id',
             'interactiveslideid = ?', [$interactiveslideid]);
+
+        self::delete_sessions($sessionids);
+    }
+
+    /**
+     * Delete one session and everything recorded during it.
+     *
+     * Stars are not stored as a running total anywhere else: every star a
+     * student holds is a participant row, a response row or an award row that
+     * belongs to a session. Removing the session removes all three, so the stars
+     * it paid out disappear from every leaderboard and every report at once,
+     * with nothing left to recalculate.
+     *
+     * @param int $sessionid
+     * @return void
+     */
+    public static function delete_session(int $sessionid): void {
+        self::delete_sessions([$sessionid]);
+    }
+
+    /**
+     * Delete a set of sessions and everything recorded during them.
+     *
+     * @param int[] $sessionids
+     * @return void
+     */
+    private static function delete_sessions(array $sessionids): void {
+        global $DB;
+
+        $sessionids = array_values(array_filter(array_map('intval', $sessionids)));
         if (!$sessionids) {
             return;
         }
 
         [$insql, $params] = $DB->get_in_or_equal($sessionids);
+
+        $transaction = $DB->start_delegated_transaction();
+
         $roundids = $DB->get_fieldset_select('interactiveslide_round', 'id', "sessionid $insql", $params);
         if ($roundids) {
             [$roundsql, $roundparams] = $DB->get_in_or_equal($roundids);
@@ -153,6 +186,8 @@ class session_manager {
         $DB->delete_records_select('interactiveslide_award', "sessionid $insql", $params);
         $DB->delete_records_select('interactiveslide_participant', "sessionid $insql", $params);
         $DB->delete_records_select('interactiveslide_session', "id $insql", $params);
+
+        $transaction->allow_commit();
     }
 
     /**

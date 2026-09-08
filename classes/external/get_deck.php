@@ -119,6 +119,15 @@ class get_deck extends external_api {
 
         $blanks = [];
         foreach ($interaction->blanks ?? [] as $blank) {
+            $positionoptions = [];
+            foreach ($blank->options ?? [] as $option) {
+                $positionoptions[] = [
+                    'id' => (int)$option->id,
+                    'optiontext' => (string)$option->optiontext,
+                    'iscorrect' => (int)$option->iscorrect,
+                ];
+            }
+
             $blanks[] = [
                 'id' => (int)$blank->id,
                 'label' => (string)$blank->label,
@@ -126,6 +135,7 @@ class get_deck extends external_api {
                 'points' => (int)$blank->points,
                 'difficulty' => (string)$blank->difficulty,
                 'casesensitive' => (int)$blank->casesensitive,
+                'options' => $positionoptions,
             ];
         }
 
@@ -145,6 +155,9 @@ class get_deck extends external_api {
             'maxentries' => (int)$interaction->maxentries,
             'maxwordlength' => (int)$interaction->maxwordlength,
             'casesensitive' => (int)$interaction->casesensitive,
+            // The raw URL, not the resolved embed: this payload fills the editor,
+            // where the teacher has to see back what they typed.
+            'videourl' => (string)($interaction->videourl ?? ''),
             'allowretry' => (int)$interaction->allowretry,
             'maxstars' => interaction_manager::max_stars($interaction),
             'options' => $options,

@@ -79,6 +79,17 @@ class aggregator {
                 $result['choices'] = self::choice_tally($interaction, (int)$round->id, $includecorrect);
                 break;
 
+            case interaction_manager::TYPE_DROPDOWN:
+                // One tally per position, drawn the same way the blanks of a
+                // fill in the blank are.
+                $result['blanks'] = self::position_tally($interaction, (int)$round->id, $includecorrect);
+                break;
+
+            case interaction_manager::TYPE_VIDEO:
+                // A video collects nothing, so there is no tally. The overlay
+                // shows the video itself in place of a result.
+                break;
+
             case interaction_manager::TYPE_FILLBLANK:
                 $result['blanks'] = self::blank_tally($interaction, (int)$round->id, $includecorrect);
                 break;
@@ -312,6 +323,72 @@ class aggregator {
                 'label' => (string)$blank->label,
                 'points' => (int)$blank->points,
                 'answers' => $includecorrect ? array_values($answerlist) : [],
+                'entries' => $entries,
+                'correctcount' => $correct,
+                'answeredcount' => $answered,
+            ];
+        }
+
+        return $blanks;
+    }
+
+    /**
+     * The tally of each dropdown position.
+     *
+     * Counted from the option ids rather than from the text, and started from
+     * the option list rather than from what came back, so a choice nobody picked
+     * still appears with a zero. On the projector that is the point: the room
+     * has to see the whole list to read the result.
+     *
+     * @param stdClass $interaction with blanks and their options attached
+     * @param int $roundid
+     * @param bool $includecorrect whether the answer has been revealed
+     * @return array[] one entry per position
+     */
+    public static function position_tally(stdClass $interaction, int $roundid, bool $includecorrect): array {
+        global $DB;
+
+        $counts = $DB->get_records_sql(
+            'SELECT optionid, COUNT(id) AS entrycount
+               FROM {interactiveslide_answer}
+              WHERE roundid = :roundid AND optionid <> 0
+           GROUP BY optionid',
+            ['roundid' => $roundid]
+        );
+
+        $blanks = [];
+        foreach ($interaction->blanks ?? [] as $blank) {
+            $entries = [];
+            $correct = 0;
+            $answered = 0;
+
+            foreach ($blank->options ?? [] as $option) {
+                $count = (int)($counts[(int)$option->id]->entrycount ?? 0);
+                $answered += $count;
+                if ((int)$option->iscorrect === 1) {
+                    $correct += $count;
+                }
+                $entries[] = [
+                    'text' => (string)$option->optiontext,
+                    'count' => $count,
+                    'iscorrect' => $includecorrect ? (int)$option->iscorrect : 0,
+                ];
+            }
+
+            $answerlist = [];
+            if ($includecorrect) {
+                foreach ($blank->options ?? [] as $option) {
+                    if ((int)$option->iscorrect === 1) {
+                        $answerlist[] = (string)$option->optiontext;
+                    }
+                }
+            }
+
+            $blanks[] = [
+                'id' => (int)$blank->id,
+                'label' => (string)$blank->label,
+                'points' => (int)$blank->points,
+                'answers' => $answerlist,
                 'entries' => $entries,
                 'correctcount' => $correct,
                 'answeredcount' => $answered,

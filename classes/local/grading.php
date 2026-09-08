@@ -89,7 +89,8 @@ class grading {
 
         $max = 0;
         foreach ($interactions as $interaction) {
-            if ($interaction->qtype === interaction_manager::TYPE_FILLBLANK) {
+            if ($interaction->qtype === interaction_manager::TYPE_FILLBLANK
+                    || $interaction->qtype === interaction_manager::TYPE_DROPDOWN) {
                 $max += isset($blanktotals[$interaction->id]) ? (int)$blanktotals[$interaction->id]->total : 0;
             } else {
                 $max += (int)$interaction->points;

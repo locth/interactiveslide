@@ -32,11 +32,14 @@ use stdClass;
 class userinfo {
 
     /**
-     * Every column fullname() and user_picture need, and nothing else.
+     * Every column fullname() and user_picture need, plus the ID number.
+     *
+     * `idnumber` is the student number a lecturer marks by. It is on the report
+     * rather than the leaderboard on purpose: the board is read by the room.
      *
      * @var string
      */
-    public const FIELDS = 'id, picture, imagealt, email, firstname, lastname, ' .
+    public const FIELDS = 'id, idnumber, picture, imagealt, email, firstname, lastname, ' .
         'firstnamephonetic, lastnamephonetic, middlename, alternatename';
 
     /**
@@ -65,6 +68,7 @@ class userinfo {
     public static function placeholder(int $userid): stdClass {
         $user = new stdClass();
         $user->id = $userid;
+        $user->idnumber = '';
         $user->picture = 0;
         $user->imagealt = '';
         $user->email = '';

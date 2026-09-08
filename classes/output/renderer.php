@@ -147,6 +147,14 @@ class renderer extends plugin_renderer_base {
      * candidate is checked on disk here so the browser only ever probes builds
      * that actually exist, and so the error message can say something useful.
      *
+     * Each build is offered twice: first through pdfjs.php, which sets the
+     * JavaScript MIME type itself, and then at its plain URL. A browser refuses
+     * an ES module served as application/octet-stream, which is what many
+     * servers still send for `.mjs`, so the plain URL fails on exactly the sites
+     * where nobody can edit the server config. Serving it ourselves removes that
+     * dependency; the plain URL stays as the second try because it costs no PHP
+     * process on a site that is configured correctly.
+     *
      * @return array[] each with src, worker, module, and optional font data URLs
      */
     private static function pdfjs_candidates(): array {
@@ -155,23 +163,38 @@ class renderer extends plugin_renderer_base {
         $locations = [
             // A copy dropped into this plugin wins: an administrator put it there
             // on purpose, usually because the core one was missing or too old.
-            ['/mod/interactiveslide/thirdparty/pdfjs', 'pdf.mjs', 'pdf.worker.mjs', true],
-            ['/mod/interactiveslide/thirdparty/pdfjs', 'pdf.min.mjs', 'pdf.worker.min.mjs', true],
-            // Same files renamed to .js, the workaround for a server that will not
-            // serve .mjs as JavaScript.
-            ['/mod/interactiveslide/thirdparty/pdfjs', 'pdf.js', 'pdf.worker.js', true],
-            ['/mod/interactiveslide/thirdparty/pdfjs', 'pdf.min.js', 'pdf.worker.min.js', false],
+            ['plugin', '/mod/interactiveslide/thirdparty/pdfjs', 'pdf.mjs', 'pdf.worker.mjs', true],
+            ['plugin', '/mod/interactiveslide/thirdparty/pdfjs', 'pdf.min.mjs', 'pdf.worker.min.mjs', true],
+            // Same files renamed to .js, the hand workaround for a server that
+            // will not serve .mjs as JavaScript. Still supported for anyone who
+            // did it before this plugin started serving them itself.
+            ['plugin', '/mod/interactiveslide/thirdparty/pdfjs', 'pdf.js', 'pdf.worker.js', true],
+            ['plugin', '/mod/interactiveslide/thirdparty/pdfjs', 'pdf.min.js', 'pdf.worker.min.js', false],
             // Whatever this Moodle happens to ship.
-            ['/lib/pdfjs/build', 'pdf.mjs', 'pdf.worker.mjs', true],
-            ['/lib/pdfjs/build', 'pdf.js', 'pdf.worker.js', false],
+            ['core', '/lib/pdfjs/build', 'pdf.mjs', 'pdf.worker.mjs', true],
+            ['core', '/lib/pdfjs/build', 'pdf.js', 'pdf.worker.js', false],
         ];
 
         $candidates = [];
-        foreach ($locations as [$dir, $script, $worker, $ismodule]) {
-            if (!file_exists($CFG->dirroot . $dir . '/' . $script)
-                    || !file_exists($CFG->dirroot . $dir . '/' . $worker)) {
+        foreach ($locations as [$area, $dir, $script, $worker, $ismodule]) {
+            $scriptpath = $CFG->dirroot . $dir . '/' . $script;
+            $workerpath = $CFG->dirroot . $dir . '/' . $worker;
+
+            if (!file_exists($scriptpath) || !file_exists($workerpath)) {
                 continue;
             }
+
+            // The timestamp is what lets the served copy be cached for a year:
+            // replacing pdf.js changes it, which changes the URL.
+            $rev = max((int)filemtime($scriptpath), (int)filemtime($workerpath));
+
+            $served = [
+                'src' => self::pdfjs_served_url($area, $script, $rev),
+                'worker' => self::pdfjs_served_url($area, $worker, $rev),
+                'module' => $ismodule,
+                'cmapurl' => '',
+                'fonturl' => '',
+            ];
 
             $candidate = [
                 'src' => $CFG->wwwroot . $dir . '/' . $script,
@@ -191,9 +214,29 @@ class renderer extends plugin_renderer_base {
                 $candidate['fonturl'] = $CFG->wwwroot . $root . '/standard_fonts/';
             }
 
+            $served['cmapurl'] = $candidate['cmapurl'];
+            $served['fonturl'] = $candidate['fonturl'];
+
+            $candidates[] = $served;
             $candidates[] = $candidate;
         }
 
         return $candidates;
+    }
+
+    /**
+     * The URL that serves one pdf.js file through the plugin's own shim.
+     *
+     * @param string $area 'plugin' or 'core', matching pdfjs.php
+     * @param string $file the file name, with no path
+     * @param int $rev the file's timestamp, so a replaced build misses the cache
+     * @return string
+     */
+    private static function pdfjs_served_url(string $area, string $file, int $rev): string {
+        return (new \moodle_url('/mod/interactiveslide/pdfjs.php', [
+            'dir' => $area,
+            'file' => $file,
+            'rev' => $rev,
+        ]))->out(false);
     }
 }

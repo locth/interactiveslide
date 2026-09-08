@@ -57,12 +57,12 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $interaction = new backup_nested_element('interaction', ['id'], [
             'qtype', 'questiontext', 'hasanswer', 'difficulty', 'points', 'timerseconds',
             'autoclose', 'showliveresult', 'showleaderboard', 'allowmultiple', 'shuffleoptions',
-            'maxentries', 'maxwordlength', 'casesensitive', 'allowretry',
+            'maxentries', 'maxwordlength', 'casesensitive', 'videourl', 'allowretry',
             'timecreated', 'timemodified',
         ]);
 
         $options = new backup_nested_element('options');
-        $option = new backup_nested_element('option', ['id'], ['sortorder', 'optiontext', 'iscorrect']);
+        $option = new backup_nested_element('option', ['id'], ['blankid', 'sortorder', 'optiontext', 'iscorrect']);
 
         $blanks = new backup_nested_element('blanks');
         $blank = new backup_nested_element('blank', ['id'], [
@@ -109,11 +109,14 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $slide->add_child($interactions);
         $interactions->add_child($interaction);
 
-        $interaction->add_child($options);
-        $options->add_child($option);
-
+        // Blanks first: a dropdown's choices point back at the position they
+        // belong to, and restore can only remap that link once the position it
+        // names has been written.
         $interaction->add_child($blanks);
         $blanks->add_child($blank);
+
+        $interaction->add_child($options);
+        $options->add_child($option);
 
         $interactiveslide->add_child($sessions);
         $sessions->add_child($session);

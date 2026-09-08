@@ -54,5 +54,40 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090600, 'interactiveslide');
     }
 
+    if ($oldversion < 2026090800) {
+        // The video interaction keeps the URL the teacher pasted; what it is
+        // turned into for the page is worked out on every render, so a change to
+        // the embedding rules does not need a second migration.
+        $table = new xmldb_table('interactiveslide_interaction');
+        $field = new xmldb_field('videourl', XMLDB_TYPE_CHAR, '1333', null,
+            null, null, null, 'casesensitive');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026090800, 'interactiveslide');
+    }
+
+    if ($oldversion < 2026090801) {
+        // A dropdown puts several selects in one sentence, and each of them owns
+        // its own list of choices. The position is a blank row; this is the link
+        // from a choice back to the position it belongs to. 0 keeps meaning
+        // "belongs to the question itself", which is every multiple choice row
+        // already in the table.
+        $table = new xmldb_table('interactiveslide_option');
+        $field = new xmldb_field('blankid', XMLDB_TYPE_INTEGER, '10', null,
+            XMLDB_NOTNULL, null, '0', 'interactionid');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $index = new xmldb_index('blankid', XMLDB_INDEX_NOTUNIQUE, ['blankid']);
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
+
+        upgrade_mod_savepoint(true, 2026090801, 'interactiveslide');
+    }
+
     return true;
 }
