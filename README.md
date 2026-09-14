@@ -28,6 +28,37 @@ Built for **Moodle 5.0+**.
   **1.7MB as PNG against 140KB at JPEG 85** and 90KB at JPEG 70. PNG remains
   selectable for decks whose fine text has to stay pin sharp.
 
+**Moving a deck**
+: A deck exports to one `.zip` — every slide, every picture, every interaction —
+  and imports into any other Interactive Slide activity, on this site or another
+  one. It is how you hand a colleague a lecture, or carry one between the test
+  site and the live one.
+
+  The file holds `deck.json` and an `images/` directory, and nothing else. It
+  carries **content only**: no sessions, no stars, no student answers. Those
+  belong to a particular class, they mean nothing once user ids no longer match,
+  and Moodle's own course backup already carries them. An import never renames
+  the target activity or touches its grade and leaderboard settings either —
+  only slides and questions cross over.
+
+  Importing into an activity that already has slides asks which you meant:
+  replace the deck, or add to the end. On an empty activity it does not ask,
+  because the two are the same thing.
+
+  Two things are worth knowing before moving a deck between sites. **Star values
+  follow the destination.** A question marked Hard is worth what Hard is worth
+  where it lands, because difficulty is what the teacher authored and the star
+  value is the site's own policy; a question given an exact number instead
+  (difficulty "custom") keeps it. The editor says so when the two sites differ.
+  And **a deck of fifty slides is around 7 MB**, so a big one can meet the
+  server's `post_max_size` — the import says which limit it hit rather than
+  failing obscurely.
+
+  The format identifies itself and carries a version. A file written by a newer
+  version of the plugin is refused by name, with a message saying to update,
+  rather than half-read. Adding a key never bumps that version; a reader ignores
+  keys it does not know.
+
 **Slides on student devices**
 : Can be switched off site-wide, leaving the phone as an answer device while the
   room reads the projector. The image URL is then never put in the student's
@@ -307,6 +338,11 @@ parts and manual awards are all covered.
   `grunt amd` in your Moodle root if you want them genuinely minified.
 - Editing a question after students have answered it is refused rather than
   silently invalidating the collected responses.
+- Question text and choices are stored exactly as typed, so `<` and `>` survive
+  and every renderer escapes them. One narrow case is left: a fill-in-the-blank
+  whose accepted answer is *only* punctuation (`<` on its own) still matches
+  nothing, because answers are compared with the surrounding punctuation
+  trimmed. `0<x<1` is fine; a bare `<` should be a dropdown choice instead.
 
 ## Licence
 

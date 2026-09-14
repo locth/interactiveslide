@@ -333,7 +333,7 @@ class interaction_manager {
         $record = new stdClass();
         $record->slideid = $slideid;
         $record->qtype = $qtype;
-        $record->questiontext = clean_param((string)($data['questiontext'] ?? ''), PARAM_TEXT);
+        $record->questiontext = text_util::clean_plain((string)($data['questiontext'] ?? ''));
         $record->hasanswer = $hasanswer;
         $record->difficulty = $difficulty;
         $record->timerseconds = max(0, min(3600, (int)($data['timerseconds'] ?? 0)));
@@ -433,7 +433,7 @@ class interaction_manager {
 
             $options = [];
             foreach ((array)($raw['options'] ?? []) as $rawoption) {
-                $text = trim(clean_param((string)($rawoption['optiontext'] ?? ''), PARAM_TEXT));
+                $text = trim(text_util::clean_plain((string)($rawoption['optiontext'] ?? '')));
                 if ($text === '') {
                     continue;
                 }
@@ -471,7 +471,7 @@ class interaction_manager {
             }
 
             $positions[] = [
-                'label' => \core_text::substr(clean_param((string)($raw['label'] ?? ''), PARAM_TEXT), 0, 255),
+                'label' => \core_text::substr(text_util::clean_plain((string)($raw['label'] ?? '')), 0, 255),
                 'answers' => '',
                 'points' => $hasanswer
                     ? self::points_for_difficulty($difficulty, (int)($raw['points'] ?? 1))
@@ -515,8 +515,7 @@ class interaction_manager {
 
         $options = [];
         foreach ($rawoptions as $raw) {
-            $text = clean_param((string)($raw['optiontext'] ?? ''), PARAM_TEXT);
-            $text = trim($text);
+            $text = trim(text_util::clean_plain((string)($raw['optiontext'] ?? '')));
             if ($text === '') {
                 continue;
             }
@@ -594,7 +593,7 @@ class interaction_manager {
             }
 
             $blanks[] = [
-                'label' => \core_text::substr(clean_param((string)($raw['label'] ?? ''), PARAM_TEXT), 0, 255),
+                'label' => \core_text::substr(text_util::clean_plain((string)($raw['label'] ?? '')), 0, 255),
                 'answers' => $encoded,
                 'points' => $hasanswer
                     ? self::points_for_difficulty($difficulty, (int)($raw['points'] ?? 1))

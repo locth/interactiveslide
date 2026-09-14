@@ -67,6 +67,32 @@ class text_util {
     }
 
     /**
+     * Clean a piece of text a teacher typed, without deciding it contains markup.
+     *
+     * PARAM_TEXT, which this used to be, ends in strip_tags(). That is right for
+     * a name that will be printed through format_string(), and wrong for the
+     * content of a question: strip_tags() reads "<" as the start of a tag, so
+     * "0<x<1" is stored as "0", a dropdown choice of "<" is stored as nothing at
+     * all, and the teacher is never told. A mathematics lecturer types those.
+     *
+     * So this keeps the text as it was typed and removes only what could not
+     * have been meant: invalid UTF-8, and the control characters that let two
+     * identical looking answers be stored as different strings. It is the same
+     * treatment student answers have always had ({@see self::encode_answers()}),
+     * and it is safe for the same reason: every renderer of these fields escapes
+     * them - Util.escape() or textContent in the AMD modules, {{ }} in the
+     * templates. Nothing writes them into a page as markup.
+     *
+     * @param string $text as typed
+     * @return string
+     */
+    public static function clean_plain(string $text): string {
+        // PARAM_RAW is not "no cleaning": it repairs broken UTF-8, which is the
+        // one thing that must not reach the database.
+        return self::strip_invisible((string)clean_param($text, PARAM_RAW));
+    }
+
+    /**
      * Decide whether a submitted string matches any accepted answer.
      *
      * @param string $submitted raw user input

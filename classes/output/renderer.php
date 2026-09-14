@@ -109,6 +109,10 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_editor(stdClass $instance, $cm, context_module $context): string {
+        global $CFG;
+
+        $course = $this->page->course;
+
         $this->page->requires->js_call_amd('mod_interactiveslide/editor', 'init', [[
             'cmid' => (int)$cm->id,
             'sesskey' => sesskey(),
@@ -116,6 +120,13 @@ class renderer extends plugin_renderer_base {
             'renderscale' => (int)(get_config('mod_interactiveslide', 'renderscale') ?: 1600),
             'maxpages' => (int)(get_config('mod_interactiveslide', 'maxpages') ?: 200),
             'imageformat' => \mod_interactiveslide\local\settings::image_format(),
+            // So the editor can refuse an oversized deck before the bytes leave
+            // the browser. The server checks again regardless.
+            'maxupload' => get_max_upload_file_size($CFG->maxbytes, $course->maxbytes ?? 0),
+            // A snapshot taken when the page loaded, which is enough: a session
+            // lasts a lecture, and this only warns before a destructive import.
+            'sessionlive' => (bool)\mod_interactiveslide\local\session_manager::get_active_session(
+                (int)$instance->id),
             'pdfjs' => self::pdfjs_candidates(),
         ]]);
 
@@ -126,6 +137,10 @@ class renderer extends plugin_renderer_base {
             'presenturl' => (new \moodle_url('/mod/interactiveslide/present.php', ['id' => $cm->id]))->out(false),
             'pdffilename' => (string)($instance->pdffilename ?? ''),
             'haspdf' => !empty($instance->pdffilename),
+            // An ordinary link: exporting needs no JavaScript at all, and a
+            // plain href is what a teacher can right click and save.
+            'exporturl' => (new \moodle_url('/mod/interactiveslide/export.php',
+                ['id' => (int)$cm->id, 'sesskey' => sesskey()]))->out(false),
         ]);
     }
 

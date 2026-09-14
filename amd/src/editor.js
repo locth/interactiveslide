@@ -42,7 +42,9 @@ define([
         'confirmclearresponses_desc', 'responsescleared', 'typeopenended',
         'maxwordlength', 'maxanswerlength', 'novideo', 'video',
         'positions', 'blanks', 'addblank', 'options', 'addoption',
-        'typedropdown', 'typevideo'
+        'typedropdown', 'typevideo', 'notadeckfile', 'errorarchivetoolarge',
+        'importmode_desc', 'importreplace', 'importingdeck', 'deckimported',
+        'deckimportedwarnings', 'deckrepriced', 'decksessionrunning'
     ];
 
     /**
@@ -91,6 +93,7 @@ define([
 
         bindImport(view);
         bindAddSlide(view);
+        bindImportDeck(view);
         bindSlideTools(view);
         bindInspector(view);
 
@@ -1304,6 +1307,240 @@ define([
                 Util.toast(view.root, error.message || view.strings.uploadfailed, 'error');
             });
         });
+    };
+
+    /**
+     * Load a deck file into this activity.
+     *
+     * Three outcomes — replace, append, cancel — where a confirm dialog offers
+     * two, so the choice is an inline panel instead. It is also the only part of
+     * this that branches, and plain DOM is the part a browser harness can drive.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindImportDeck = function(view) {
+        var input = Util.region(view.root, 'deckinput');
+        if (!input) {
+            return;
+        }
+
+        // Held here rather than left on the input: the input is cleared the
+        // moment a file is picked, so the same file can be picked again, and a
+        // cancelled import must not leave a stale file behind to be sent later.
+        var pending = null;
+
+        var clear = function() {
+            pending = null;
+            Util.toggle(Util.region(view.root, 'importmode'), false);
+        };
+
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            input.value = '';
+
+            if (!file) {
+                return;
+            }
+            if (!/\.zip$/i.test(file.name) && file.type !== 'application/zip') {
+                Util.toast(view.root, view.strings.notadeckfile, 'error');
+                return;
+            }
+            if (view.config.maxupload && file.size > view.config.maxupload) {
+                Util.toast(view.root, view.strings.errorarchivetoolarge, 'error');
+                return;
+            }
+
+            // On an empty deck the two modes do the same thing, so asking is
+            // just a question with one answer.
+            if (!view.slides.length) {
+                runDeckImport(view, file, 'append');
+                return;
+            }
+
+            pending = file;
+            showImportChoice(view, file);
+        });
+
+        Util.actions(view.root, 'importreplace').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var file = pending;
+                clear();
+                if (file) {
+                    runDeckImport(view, file, 'replace');
+                }
+            });
+        });
+
+        Util.actions(view.root, 'importappend').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var file = pending;
+                clear();
+                if (file) {
+                    runDeckImport(view, file, 'append');
+                }
+            });
+        });
+
+        Util.actions(view.root, 'importcancel').forEach(function(button) {
+            button.addEventListener('click', clear);
+        });
+
+        view.root.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && pending) {
+                clear();
+            }
+        });
+    };
+
+    /**
+     * Show the replace-or-append panel for a chosen file.
+     *
+     * @param {Object} view
+     * @param {File} file
+     * @return {void}
+     */
+    var showImportChoice = function(view, file) {
+        var panel = Util.region(view.root, 'importmode');
+        var desc = Util.region(view.root, 'importmode-desc');
+        var warning = Util.region(view.root, 'importmode-warning');
+
+        if (desc) {
+            desc.textContent = view.strings.importmode_desc
+                .replace('{$a->file}', file.name)
+                // The count inside the file is not known until the server has
+                // read it, so the sentence talks about what is already here.
+                .replace('{$a->slides}', '?')
+                .replace('{$a->existing}', view.slides.length);
+        }
+
+        Util.actions(view.root, 'importreplace').forEach(function(button) {
+            button.textContent = view.strings.importreplace.replace('{$a}', view.slides.length);
+        });
+
+        // Worth saying before the click, not after: replacing the deck under a
+        // room that is looking at it is the one way this goes badly.
+        if (warning) {
+            var live = !!view.config.sessionlive;
+            warning.textContent = view.strings.decksessionrunning;
+            Util.toggle(warning, live);
+        }
+
+        Util.toggle(panel, true);
+        var first = Util.actions(view.root, 'importappend')[0];
+        if (first) {
+            first.focus();
+        }
+    };
+
+    /**
+     * Send the deck file and adopt what comes back.
+     *
+     * @param {Object} view
+     * @param {File} file
+     * @param {String} mode 'replace' or 'append'
+     * @return {void}
+     */
+    var runDeckImport = function(view, file, mode) {
+        var panel = Util.region(view.root, 'import');
+        var status = Util.region(view.root, 'import-status');
+        var title = Util.region(view.root, 'import-title');
+        var bar = Util.region(view.root, 'import-bar');
+        var inputs = [Util.region(view.root, 'deckinput'), Util.region(view.root, 'pdfinput'),
+            Util.region(view.root, 'slideinput')];
+
+        var form = new FormData();
+        form.append('cmid', view.config.cmid);
+        form.append('sesskey', view.config.sesskey);
+        form.append('action', 'importdeck');
+        form.append('mode', mode);
+        form.append('archive', file, file.name);
+
+        if (title) {
+            title.textContent = view.strings.importingdeck;
+        }
+        if (status) {
+            status.textContent = file.name;
+        }
+        if (bar) {
+            // One request, so there is nothing to count towards.
+            bar.classList.add('is-indeterminate');
+        }
+        Util.toggle(panel, true);
+        // A big deck takes half a minute. Nobody should be able to start a
+        // second import on top of the first.
+        inputs.forEach(function(node) {
+            if (node) {
+                node.disabled = true;
+            }
+        });
+
+        var done = function() {
+            Util.toggle(panel, false);
+            if (bar) {
+                bar.classList.remove('is-indeterminate');
+            }
+            if (title) {
+                title.textContent = view.strings.importing;
+            }
+            inputs.forEach(function(node) {
+                if (node) {
+                    node.disabled = false;
+                }
+            });
+        };
+
+        fetch(view.config.uploadurl, {
+            method: 'POST',
+            body: form,
+            credentials: 'same-origin'
+        }).then(function(response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        }).then(function(payload) {
+            if (payload.status !== 'ok') {
+                throw new Error(payload.message || payload.error || view.strings.importfailed);
+            }
+            done();
+            view.selectedId = 0;
+            return reload(view).then(function() {
+                reportDeckImport(view, payload);
+                return null;
+            });
+        }).catch(function(error) {
+            done();
+            Util.toast(view.root, error.message || view.strings.importfailed, 'error');
+        });
+    };
+
+    /**
+     * Say what the import did, including the parts a teacher would not notice.
+     *
+     * @param {Object} view
+     * @param {Object} payload the server's reply
+     * @return {void}
+     */
+    var reportDeckImport = function(view, payload) {
+        if (payload.warnings) {
+            Util.toast(view.root, view.strings.deckimportedwarnings
+                .replace('{$a->slides}', payload.slides)
+                .replace('{$a->warnings}', payload.warnings), 'error');
+        } else {
+            Util.toast(view.root, view.strings.deckimported.replace('{$a}', payload.slides),
+                'success');
+        }
+
+        // Star values are the destination site's policy, so a deck can arrive
+        // priced differently from where it was written. Silent would be the one
+        // real objection to that; this says it.
+        var local = payload.starvalues;
+        var here = view.defaults;
+        if (local && here && (local.easy !== here.easy || local.medium !== here.medium
+                || local.hard !== here.hard)) {
+            Util.toast(view.root, view.strings.deckrepriced, 'info');
+        }
     };
 
     /**

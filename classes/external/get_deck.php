@@ -22,7 +22,6 @@ use core_external\external_single_structure;
 use core_external\external_value;
 use mod_interactiveslide\local\interaction_manager;
 use mod_interactiveslide\local\slide_manager;
-use mod_interactiveslide\local\text_util;
 
 /**
  * The full deck with every interaction, for the editor and the presenter filmstrip.
@@ -108,61 +107,11 @@ class get_deck extends external_api {
      * @return array
      */
     private static function export_interaction(\stdClass $interaction): array {
-        $options = [];
-        foreach ($interaction->options ?? [] as $option) {
-            $options[] = [
-                'id' => (int)$option->id,
-                'optiontext' => (string)$option->optiontext,
-                'iscorrect' => (int)$option->iscorrect,
-            ];
-        }
-
-        $blanks = [];
-        foreach ($interaction->blanks ?? [] as $blank) {
-            $positionoptions = [];
-            foreach ($blank->options ?? [] as $option) {
-                $positionoptions[] = [
-                    'id' => (int)$option->id,
-                    'optiontext' => (string)$option->optiontext,
-                    'iscorrect' => (int)$option->iscorrect,
-                ];
-            }
-
-            $blanks[] = [
-                'id' => (int)$blank->id,
-                'label' => (string)$blank->label,
-                'answers' => $blank->answerlist ?? text_util::decode_answers($blank->answers),
-                'points' => (int)$blank->points,
-                'difficulty' => (string)$blank->difficulty,
-                'casesensitive' => (int)$blank->casesensitive,
-                'options' => $positionoptions,
-            ];
-        }
-
-        return [
-            'id' => (int)$interaction->id,
-            'qtype' => (string)$interaction->qtype,
-            'questiontext' => (string)$interaction->questiontext,
-            'hasanswer' => (int)$interaction->hasanswer,
-            'difficulty' => (string)$interaction->difficulty,
-            'points' => (int)$interaction->points,
-            'timerseconds' => (int)$interaction->timerseconds,
-            'autoclose' => (int)$interaction->autoclose,
-            'showliveresult' => (int)$interaction->showliveresult,
-            'showleaderboard' => (int)$interaction->showleaderboard,
-            'allowmultiple' => (int)$interaction->allowmultiple,
-            'shuffleoptions' => (int)$interaction->shuffleoptions,
-            'maxentries' => (int)$interaction->maxentries,
-            'maxwordlength' => (int)$interaction->maxwordlength,
-            'casesensitive' => (int)$interaction->casesensitive,
-            // The raw URL, not the resolved embed: this payload fills the editor,
-            // where the teacher has to see back what they typed.
-            'videourl' => (string)($interaction->videourl ?? ''),
-            'allowretry' => (int)$interaction->allowretry,
-            'maxstars' => interaction_manager::max_stars($interaction),
-            'options' => $options,
-            'blanks' => $blanks,
-        ];
+        // One serialiser for the whole plugin. The deck file and this payload
+        // carry the same question, so they are written by the same function;
+        // two of them would eventually disagree about some field nobody looks
+        // at until a deck comes back wrong.
+        return \mod_interactiveslide\local\deck_archive::interaction_to_array($interaction, true);
     }
 
     /**

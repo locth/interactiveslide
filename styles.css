@@ -1539,6 +1539,8 @@
 .islide-editor-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: .6rem;
 }
 
@@ -1553,6 +1555,52 @@
     height: 1px;
     opacity: 0;
     overflow: hidden;
+}
+
+/* The replace-or-append chooser.
+ *
+ * Plain DOM rather than a core modal: it is the one genuinely branching piece of
+ * the import, and the browser harness can drive plain DOM. A core modal would
+ * look more native and be untestable here. */
+.islide-importmode {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: 1rem;
+    padding: 1rem 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-star);
+}
+
+.islide-importmode p {
+    margin: 0;
+    color: var(--islide-muted);
+}
+
+.islide-importmode-warning {
+    font-weight: 600;
+    color: var(--islide-danger) !important;
+}
+
+.islide-importmode-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .25rem;
+}
+
+/* One POST, so there is no page count to count. The bar says "working" rather
+ * than pretending to know how far along it is. */
+.islide-progress-bar.is-indeterminate {
+    width: 40% !important;
+    animation: islide-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes islide-indeterminate {
+    0% { margin-left: 0; }
+    50% { margin-left: 60%; }
+    100% { margin-left: 0; }
 }
 
 .islide-import {

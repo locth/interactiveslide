@@ -30,7 +30,21 @@ define('AJAX_SCRIPT', true);
 
 require(__DIR__ . '/../../config.php');
 
+use mod_interactiveslide\local\deck_archive;
+use mod_interactiveslide\local\deck_importer;
 use mod_interactiveslide\local\slide_manager;
+
+// A POST larger than post_max_size reaches PHP with $_POST and $_FILES emptied,
+// so the first required_param below would fail with "missing required
+// parameter" — true, useless, and nothing to do with what went wrong. Said
+// plainly here instead, for this and for the PDF page uploads.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && !empty($_SERVER['CONTENT_LENGTH'])) {
+    echo json_encode([
+        'status' => 'error',
+        'message' => get_string('errorposttoolarge', 'mod_interactiveslide'),
+    ], JSON_UNESCAPED_UNICODE);
+    die();
+}
 
 $cmid = required_param('cmid', PARAM_INT);
 $action = required_param('action', PARAM_ALPHA);
@@ -192,6 +206,80 @@ switch ($action) {
             'status' => 'ok',
             'slideid' => (int)$slideid,
             'imageurl' => slide_manager::get_image_url($context, $slide),
+        ]);
+        break;
+
+    case 'importdeck':
+        // No default mode. A missing one must never fall through to the arm
+        // that deletes the deck.
+        $mode = optional_param('mode', '', PARAM_ALPHA);
+        if (!in_array($mode, ['replace', 'append'], true)) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorinvalidmode', 'mod_interactiveslide'),
+            ]);
+        }
+
+        if (empty($_FILES['archive']) || !isset($_FILES['archive']['error'])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorarchiveupload', 'mod_interactiveslide'),
+            ]);
+        }
+
+        $maxbytes = get_max_upload_file_size($CFG->maxbytes, $course->maxbytes ?? 0);
+
+        if (in_array((int)$_FILES['archive']['error'],
+                [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true)) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorarchivetoolarge', 'mod_interactiveslide',
+                    display_size($maxbytes)),
+            ]);
+        }
+
+        if ((int)$_FILES['archive']['error'] !== UPLOAD_ERR_OK
+                || !is_uploaded_file($_FILES['archive']['tmp_name'])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorarchiveupload', 'mod_interactiveslide'),
+            ]);
+        }
+
+        if ($maxbytes > 0 && filesize($_FILES['archive']['tmp_name']) > $maxbytes) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorarchivetoolarge', 'mod_interactiveslide',
+                    display_size($maxbytes)),
+            ]);
+        }
+
+        try {
+            $result = deck_importer::import_from_archive(
+                $context, $instance, $_FILES['archive']['tmp_name'], $mode);
+        } catch (moodle_exception $e) {
+            interactiveslide_reply(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+
+        // Logged after the fact but carrying what was destroyed, because by now
+        // the rows that could answer "what was here before?" are gone.
+        \mod_interactiveslide\event\deck_imported::create_from_import(
+            $context, $instance, $mode, (int)$result['slides'], (int)$result['removed'])->trigger();
+
+        \mod_interactiveslide\local\grading::update_gradebook($instance);
+
+        interactiveslide_reply([
+            'status' => 'ok',
+            'slides' => (int)$result['slides'],
+            'removed' => (int)$result['removed'],
+            'warnings' => count($result['warnings']),
+            // So the editor can say out loud that this site prices stars
+            // differently, rather than leaving the teacher to notice.
+            'starvalues' => [
+                'easy' => \mod_interactiveslide\local\interaction_manager::points_for_difficulty('easy'),
+                'medium' => \mod_interactiveslide\local\interaction_manager::points_for_difficulty('medium'),
+                'hard' => \mod_interactiveslide\local\interaction_manager::points_for_difficulty('hard'),
+            ],
         ]);
         break;
 

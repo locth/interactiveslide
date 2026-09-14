@@ -26,7 +26,8 @@
         "viewurl": "#",
         "presenturl": "#",
         "pdffilename": "lecture.pdf",
-        "haspdf": true
+        "haspdf": true,
+        "exporturl": "#"
     }
 }}
 <div class="islide-editor" data-region="interactiveslide-editor" data-cmid="{{cmid}}">
@@ -50,9 +51,31 @@
                 {{#str}}importpdf, mod_interactiveslide{{/str}}
                 <input type="file" accept="application/pdf,.pdf" data-region="pdfinput" class="islide-file-input">
             </label>
+            <label class="btn btn-outline-primary islide-import-label">
+                {{#str}}importdeck, mod_interactiveslide{{/str}}
+                <input type="file" accept=".zip,application/zip"
+                       data-region="deckinput" class="islide-file-input">
+            </label>
+            <a class="btn btn-outline-primary" href="{{exporturl}}">{{#str}}exportdeck, mod_interactiveslide{{/str}}</a>
             <a class="btn btn-primary" href="{{presenturl}}">{{#str}}present, mod_interactiveslide{{/str}}</a>
         </div>
     </header>
+
+    <div class="islide-importmode" data-region="importmode" hidden role="group"
+         aria-labelledby="islide-importmode-title">
+        <strong id="islide-importmode-title">{{#str}}importmode, mod_interactiveslide{{/str}}</strong>
+        <p data-region="importmode-desc"></p>
+        <p class="islide-importmode-warning" data-region="importmode-warning" hidden></p>
+        <div class="islide-importmode-actions">
+            <button type="button" class="btn btn-danger" data-action="importreplace"></button>
+            <button type="button" class="btn btn-primary" data-action="importappend">
+                {{#str}}importappend, mod_interactiveslide{{/str}}
+            </button>
+            <button type="button" class="btn btn-secondary" data-action="importcancel">
+                {{#str}}importcancel, mod_interactiveslide{{/str}}
+            </button>
+        </div>
+    </div>
 
     <div class="islide-import" data-region="import" hidden>
         <div class="islide-import-head">
