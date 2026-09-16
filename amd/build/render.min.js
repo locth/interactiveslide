@@ -429,16 +429,28 @@ define([
             if (options.highlightUserid && entry.userid === options.highlightUserid) {
                 classes += ' islide-board-me';
             }
+            if (entry.isguest) {
+                classes += ' islide-board-guest';
+            }
 
             var rankLabel = medals[entry.rank]
                 ? '<span class="islide-board-medal" aria-hidden="true">' + medals[entry.rank] + '</span>'
                     + '<span class="islide-sr-only">' + esc(entry.rank) + '</span>'
                 : esc(entry.rank);
 
+            // A guest is on the same board as everyone else, marked, so the room
+            // reads one ranking and the teacher still sees who has no account.
+            var name = entry.isguest
+                ? '<span class="islide-board-name islide-board-name-guest">' +
+                    '<span class="islide-board-nametext">' + esc(entry.fullname) + '</span>' +
+                    '<span class="islide-guest-badge">' + esc(strings.guestbadge) + '</span>' +
+                    '</span>'
+                : '<span class="islide-board-name">' + esc(entry.fullname) + '</span>';
+
             html += '<li class="' + classes + '">' +
                 '<span class="islide-board-rank">' + rankLabel + '</span>' +
                 '<span class="islide-board-avatar">' + (entry.pictureurl || '') + '</span>' +
-                '<span class="islide-board-name">' + esc(entry.fullname) + '</span>';
+                name;
 
             if (entry.beststreak > 1) {
                 html += '<span class="islide-board-streak" title="' + esc(strings.beststreak) + '">' +
@@ -448,12 +460,32 @@ define([
             html += '<span class="islide-board-stars">' + esc(entry.stars) +
                 '<span class="islide-star" aria-hidden="true">&#9733;</span></span>';
 
-            if (options.award && entry.userid) {
-                html += '<button type="button" class="islide-award" data-award-userid="' +
-                    Number(entry.userid) + '" title="' + esc(strings.awardstar) + '">' +
-                    '<span aria-hidden="true">+1&#9733;</span>' +
-                    '<span class="islide-sr-only">' + esc(strings.awardstar) + '</span>' +
-                    '</button>';
+            var canAward = options.award && entry.userid;
+            // Only a guest can be taken off the board, and only from the console.
+            var canRemove = options.removeGuests && entry.isguest && entry.userid < 0;
+
+            // One cell for the buttons, so a guest row keeps the same columns as
+            // every other row instead of spilling a button onto a line of its own.
+            if (canAward || canRemove) {
+                html += '<span class="islide-board-actions">';
+
+                if (canAward) {
+                    html += '<button type="button" class="islide-award" data-award-userid="' +
+                        Number(entry.userid) + '" title="' + esc(strings.awardstar) + '">' +
+                        '<span aria-hidden="true">+1&#9733;</span>' +
+                        '<span class="islide-sr-only">' + esc(strings.awardstar) + '</span>' +
+                        '</button>';
+                }
+
+                if (canRemove) {
+                    html += '<button type="button" class="islide-remove-guest" data-remove-guest="' +
+                        Number(entry.userid) + '" title="' + esc(strings.removeguest) + '">' +
+                        '<span aria-hidden="true">&#10005;</span>' +
+                        '<span class="islide-sr-only">' + esc(strings.removeguest) + '</span>' +
+                        '</button>';
+                }
+
+                html += '</span>';
             }
 
             html += '</li>';

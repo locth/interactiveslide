@@ -23,6 +23,7 @@ use core_external\external_value;
 use mod_interactiveslide\local\grader;
 use mod_interactiveslide\local\interaction_manager;
 use mod_interactiveslide\local\session_manager;
+use mod_interactiveslide\local\participation;
 use moodle_exception;
 
 /**
@@ -57,16 +58,23 @@ class submit_response extends external_api {
      * @throws moodle_exception
      */
     public static function execute(int $cmid, int $roundid, string $answer): array {
-        global $DB, $USER;
+        global $DB;
 
         $params = self::validate_parameters(self::execute_parameters(),
             ['cmid' => $cmid, 'roundid' => $roundid, 'answer' => $answer]);
 
         $resolved = helper::resolve($params['cmid']);
         self::validate_context($resolved['context']);
-        require_capability('mod/interactiveslide:submit', $resolved['context']);
 
         $session = helper::require_active_session($resolved['instance']);
+
+        // A student answers through the capability, a guest through the running
+        // session's link. The same decision the state document is built from, so
+        // the page never offers a form the server then refuses.
+        $me = participation::resolve($resolved['instance'], $resolved['context'], $session);
+        if (!$me->canparticipate) {
+            require_capability('mod/interactiveslide:submit', $resolved['context']);
+        }
 
         $round = $DB->get_record('interactiveslide_round',
             ['id' => $params['roundid'], 'sessionid' => $session->id]);
@@ -91,7 +99,7 @@ class submit_response extends external_api {
         }
 
         $response = grader::submit($resolved['instance'], $session, $round, $interaction,
-            (int)$USER->id, $payload);
+            $me->userid, $payload);
 
         \mod_interactiveslide\event\response_submitted::create_from_response(
             $resolved['context'], $response)->trigger();

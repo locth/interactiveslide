@@ -21,17 +21,16 @@ use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
 use mod_interactiveslide\local\guest;
-use mod_interactiveslide\local\session_manager;
 use moodle_exception;
 
 /**
- * Give a student bonus stars by hand during a session.
+ * Take a guest out of the running session.
  *
  * @package    mod_interactiveslide
  * @copyright  2026 Interactive Slide contributors
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class award_stars extends external_api {
+class remove_guest extends external_api {
 
     /**
      * Parameters.
@@ -41,51 +40,35 @@ class award_stars extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'cmid' => new external_value(PARAM_INT, 'Course module id'),
-            'userid' => new external_value(PARAM_INT, 'Recipient'),
-            'stars' => new external_value(PARAM_INT, 'Stars to add, may be negative'),
-            'reason' => new external_value(PARAM_TEXT, 'Why', VALUE_DEFAULT, ''),
+            'userid' => new external_value(PARAM_INT, 'The guest, by the negative id the board shows'),
         ]);
     }
 
     /**
-     * Award the stars.
+     * Remove the guest, their answers and their stars.
+     *
+     * Only guests: an enrolled student is not the presenter's to delete from a
+     * live session, and a mistyped id must not become a way to try.
      *
      * @param int $cmid
      * @param int $userid
-     * @param int $stars
-     * @param string $reason
      * @return array
      * @throws moodle_exception
      */
-    public static function execute(int $cmid, int $userid, int $stars, string $reason = ''): array {
-        global $DB, $USER;
+    public static function execute(int $cmid, int $userid): array {
+        $params = self::validate_parameters(self::execute_parameters(), ['cmid' => $cmid, 'userid' => $userid]);
 
-        $params = self::validate_parameters(self::execute_parameters(),
-            ['cmid' => $cmid, 'userid' => $userid, 'stars' => $stars, 'reason' => $reason]);
-
-        $resolved = helper::resolve($params['cmid']);
+        $resolved = helper::resolve_for_presenter($params['cmid']);
         self::validate_context($resolved['context']);
-        require_capability('mod/interactiveslide:awardstars', $resolved['context']);
 
         $session = helper::require_active_session($resolved['instance']);
 
-        // Stars go to people in this room. An enrolled student qualifies before
-        // they have even polled; anyone else, a guest above all, only by already
-        // being on this session's board. A guest id from another session, or one
-        // the presenter removed, is on no board here and is refused.
-        $recipient = (int)$params['userid'];
-        $inroom = $DB->record_exists('interactiveslide_participant',
-            ['sessionid' => (int)$session->id, 'userid' => $recipient]);
-        if (!$inroom && (guest::is_guest_userid($recipient)
-                || !is_enrolled($resolved['context'], $recipient, 'mod/interactiveslide:submit'))) {
+        $guestid = guest::guestid((int)$params['userid']);
+        if (!$guestid) {
             throw new moodle_exception('errornotparticipant', 'mod_interactiveslide');
         }
 
-        session_manager::award_stars($session, $params['userid'], $params['stars'],
-            $params['reason'], (int)$USER->id);
-
-        \mod_interactiveslide\event\stars_awarded::create_from_award(
-            $resolved['context'], (int)$session->id, $params['userid'], $params['stars'])->trigger();
+        guest::remove($session, $guestid);
 
         return helper::state_response($resolved['instance'], $resolved['context']);
     }

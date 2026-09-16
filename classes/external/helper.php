@@ -111,10 +111,8 @@ class helper {
      * @return array the external function return value
      */
     public static function state_response(stdClass $instance, context_module $context): array {
-        global $USER;
-
         $ispresenter = has_capability('mod/interactiveslide:present', $context);
-        $payload = state::build($instance, $context, (int)$USER->id, $ispresenter);
+        $payload = state::build($instance, $context, $ispresenter);
 
         return [
             'revision' => (int)$payload['revision'],

@@ -77,4 +77,13 @@ class settings {
     public static function poll_interval(): int {
         return (int)(get_config('mod_interactiveslide', 'pollinterval') ?: 2000);
     }
+
+    /**
+     * Whether this site lets teachers invite guests into their sessions.
+     *
+     * @return bool
+     */
+    public static function guests_allowed_on_site(): bool {
+        return !empty(get_config('mod_interactiveslide', 'allowguests'));
+    }
 }

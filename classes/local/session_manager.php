@@ -95,6 +95,8 @@ class session_manager {
         $session->status = self::STATUS_ACTIVE;
         $session->currentslideid = $firstslide ? (int)$firstslide->id : 0;
         $session->joincode = self::generate_joincode();
+        // Minted with the session, so the guest link dies with it.
+        $session->guesttoken = guest::new_token();
         $session->createdby = $userid;
         $session->statechanged = 1;
         $session->timecreated = time();
@@ -185,6 +187,8 @@ class session_manager {
         }
         $DB->delete_records_select('interactiveslide_award', "sessionid $insql", $params);
         $DB->delete_records_select('interactiveslide_participant', "sessionid $insql", $params);
+        // A guest exists only inside the session they joined, so they go with it.
+        $DB->delete_records_select('interactiveslide_guest', "sessionid $insql", $params);
         $DB->delete_records_select('interactiveslide_session', "id $insql", $params);
 
         $transaction->allow_commit();
@@ -647,10 +651,9 @@ class session_manager {
      *
      * @param stdClass $instance the deck record
      * @param context_module $context
-     * @param int $userid the polling user
      * @return int 0 when no session is running
      */
-    public static function poll_revision(stdClass $instance, \context_module $context, int $userid): int {
+    public static function poll_revision(stdClass $instance, \context_module $context): int {
         $session = self::get_active_session((int)$instance->id);
         if (!$session) {
             return 0;
@@ -662,9 +665,11 @@ class session_manager {
             $session->statechanged = self::get_revision((int)$session->id);
         }
 
-        if (has_capability('mod/interactiveslide:submit', $context)
-                && self::can_join($instance, $session, $userid)) {
-            self::touch_participant($session, $userid);
+        // The same decision the full state document makes, so a guest is counted
+        // present on the cheap path exactly when they would be on the full one.
+        $me = participation::resolve($instance, $context, $session);
+        if ($me->canparticipate && self::can_join($instance, $session, $me->userid)) {
+            self::touch_participant($session, $me->userid);
         }
 
         return (int)$session->statechanged;

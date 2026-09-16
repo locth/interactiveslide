@@ -39,21 +39,32 @@ class renderer extends plugin_renderer_base {
      * @param stdClass $instance
      * @param cm_info|stdClass $cm
      * @param context_module $context
+     * @param bool $guestpass this browser opened the running session's guest link
      * @return string
      */
-    public function render_student_player(stdClass $instance, $cm, context_module $context): string {
+    public function render_student_player(stdClass $instance, $cm, context_module $context,
+            bool $guestpass = false): string {
         global $USER;
+
+        // The shared guest account has no stars of its own to look up: whatever
+        // it has collected belongs to the separate guests who used it.
+        $isguestaccount = isguestuser();
 
         $this->page->requires->js_call_amd('mod_interactiveslide/student', 'init', [[
             'cmid' => (int)$cm->id,
             'pollinterval' => self::poll_interval(),
+            // Someone who just scanned the code came to take part, not to read a
+            // star count, so the lobby is skipped for them.
+            'autoenter' => $guestpass,
         ]]);
 
         // Counted here rather than polled: a student who has come to look up how
         // many stars they have should get the number whether or not a session is
         // running, and without a request every two seconds while they read it.
-        $totals = \mod_interactiveslide\local\report_builder::own_totals(
-            (int)$cm->course, (int)$instance->id, (int)$USER->id);
+        $totals = $isguestaccount
+            ? ['activity' => 0, 'course' => 0, 'sessions' => 0, 'decks' => 0]
+            : \mod_interactiveslide\local\report_builder::own_totals(
+                (int)$cm->course, (int)$instance->id, (int)$USER->id);
 
         $session = \mod_interactiveslide\local\session_manager::get_active_session((int)$instance->id);
 
@@ -74,6 +85,10 @@ class renderer extends plugin_renderer_base {
             'sessionlive' => (bool)$session,
             'reporturl' => (new \moodle_url('/mod/interactiveslide/report.php',
                 ['id' => (int)$cm->id]))->out(false),
+            'isguestaccount' => $isguestaccount,
+            // A guest who came in some other way than the link can watch, but
+            // cannot answer, and should be told where the way in is.
+            'guestneedslink' => $isguestaccount && !$guestpass,
         ]);
     }
 
@@ -86,11 +101,26 @@ class renderer extends plugin_renderer_base {
      * @return string
      */
     public function render_presenter(stdClass $instance, $cm, context_module $context): string {
+        $guestsenabled = \mod_interactiveslide\local\guest::enabled($instance);
+
+        // Checked once, when the console opens: whether guests can reach the
+        // course at all does not change during a lecture, and the link is only
+        // worth putting on the projector when they can.
+        $guestwarning = '';
+        if ($guestsenabled) {
+            $problem = \mod_interactiveslide\local\guest::access_problem((int)$cm->course);
+            if ($problem !== '') {
+                $guestwarning = get_string($problem, 'mod_interactiveslide');
+            }
+        }
+
         $this->page->requires->js_call_amd('mod_interactiveslide/presenter', 'init', [[
             'cmid' => (int)$cm->id,
             'pollinterval' => self::poll_interval(),
             'canaward' => has_capability('mod/interactiveslide:awardstars', $context),
             'viewurl' => (new \moodle_url('/mod/interactiveslide/view.php', ['id' => $cm->id]))->out(false),
+            'guestsenabled' => $guestsenabled,
+            'guestwarning' => $guestwarning,
         ]]);
 
         return $this->render_from_template('mod_interactiveslide/presenter', [

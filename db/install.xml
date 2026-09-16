@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/interactiveslide/db" VERSION="20260905" COMMENT="Interactive Slide activity module"
+<XMLDB PATH="mod/interactiveslide/db" VERSION="20260914" COMMENT="Interactive Slide activity module"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -20,6 +20,7 @@
         <FIELD NAME="speedbonusmax" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="attendancestars" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Stars given once for joining a session."/>
         <FIELD NAME="anonymousresults" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hide other students names on the leaderboard shown to students."/>
+        <FIELD NAME="allowguests" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Guests of the course may take part through the session link."/>
         <FIELD NAME="pdffilename" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -124,6 +125,7 @@
         <FIELD NAME="status" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active|ended"/>
         <FIELD NAME="currentslideid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="joincode" TYPE="char" LENGTH="12" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="guesttoken" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Token in the guest link. A new one every session, so an old link opens nothing."/>
         <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="statechanged" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Revision counter bumped on every state change, used by pollers."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -137,6 +139,20 @@
         <INDEX NAME="deck-status" UNIQUE="false" FIELDS="interactiveslideid, status"/>
         <INDEX NAME="joincode" UNIQUE="false" FIELDS="joincode"/>
       </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="interactiveslide_guest" COMMENT="Someone taking part in one session under a name they gave, with no account of their own. Recorded elsewhere under the negative of this id.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="displayname" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="removed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Taken out by the presenter. The name is blanked with it."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
+      </KEYS>
     </TABLE>
 
     <TABLE NAME="interactiveslide_round" COMMENT="One run of an interaction inside a session.">

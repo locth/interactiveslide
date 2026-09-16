@@ -111,6 +111,22 @@ if ($ADMIN->fulltree) {
         ]
     ));
 
+    $settings->add(new admin_setting_heading(
+        'mod_interactiveslide/guestheading',
+        get_string('settingsguests', 'mod_interactiveslide'),
+        get_string('settingsguests_desc', 'mod_interactiveslide')
+    ));
+
+    // Off by default: this lets people with no account write to the database.
+    // Turning it on only makes the option available; each teacher still decides
+    // per activity.
+    $settings->add(new admin_setting_configcheckbox(
+        'mod_interactiveslide/allowguests',
+        get_string('allowguestssite', 'mod_interactiveslide'),
+        get_string('allowguestssite_desc', 'mod_interactiveslide'),
+        0
+    ));
+
     $settings->add(new admin_setting_configtext(
         'mod_interactiveslide/maxpages',
         get_string('maxpages', 'mod_interactiveslide'),

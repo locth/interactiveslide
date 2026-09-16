@@ -109,6 +109,18 @@ class mod_interactiveslide_mod_form extends moodleform_mod {
         $mform->setDefault('allowlatejoin', 1);
         $mform->addHelpButton('allowlatejoin', 'allowlatejoin', 'mod_interactiveslide');
 
+        if (\mod_interactiveslide\local\settings::guests_allowed_on_site()) {
+            $mform->addElement('advcheckbox', 'allowguests', get_string('allowguests', 'mod_interactiveslide'));
+            $mform->setType('allowguests', PARAM_INT);
+            $mform->setDefault('allowguests', 0);
+            $mform->addHelpButton('allowguests', 'allowguests', 'mod_interactiveslide');
+        } else {
+            // Shown rather than left out, so a teacher looking for the option
+            // learns who can turn it on. The stored value is not touched.
+            $mform->addElement('static', 'allowguestsdisabled', get_string('allowguests', 'mod_interactiveslide'),
+                get_string('allowguestsdisabled', 'mod_interactiveslide'));
+        }
+
         // Grade.
         $this->standard_grading_coursemodule_elements();
 

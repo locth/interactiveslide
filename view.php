@@ -33,6 +33,8 @@ use mod_interactiveslide\local\session_manager;
 
 $id = optional_param('id', 0, PARAM_INT);
 $instanceid = optional_param('n', 0, PARAM_INT);
+// The token from a guest link or QR code, when that is how the browser got here.
+$guesttoken = optional_param('guest', '', PARAM_ALPHANUM);
 
 if ($id) {
     [$course, $cm] = get_course_and_cm_from_cmid($id, 'interactiveslide');
@@ -80,8 +82,19 @@ $renderer = $PAGE->get_renderer('mod_interactiveslide');
 echo $OUTPUT->header();
 
 if (!$canpresent) {
+    // A guest link is accepted where the browser lands, and remembered in its
+    // Moodle session: every poll and every answer after this is checked against
+    // that, never against a token the page would have to keep sending.
+    $guestpass = false;
+    if ($session && \mod_interactiveslide\local\guest::enabled($instance)) {
+        if ($guesttoken !== '') {
+            \mod_interactiveslide\local\guest::accept_link($instance, $session, $guesttoken);
+        }
+        $guestpass = \mod_interactiveslide\local\guest::has_pass($session);
+    }
+
     // Students go straight into the player; there is nothing else for them here.
-    echo $renderer->render_student_player($instance, $cm, $context);
+    echo $renderer->render_student_player($instance, $cm, $context, $guestpass);
     echo $OUTPUT->footer();
     die();
 }

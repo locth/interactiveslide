@@ -152,7 +152,7 @@ class aggregator {
                     'text' => (string)$row->answertext,
                     'count' => 1,
                     'userid' => $userid,
-                    'fullname' => fullname($users[$userid] ?? userinfo::placeholder($userid)),
+                    'fullname' => userinfo::report_name($users[$userid] ?? userinfo::placeholder($userid)),
                 ];
             }
 

@@ -55,6 +55,8 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         if ($userinfo) {
             $paths[] = new restore_path_element('interactiveslide_session',
                 '/activity/interactiveslide/sessions/session');
+            $paths[] = new restore_path_element('interactiveslide_guest',
+                '/activity/interactiveslide/sessions/session/guests/guest');
             $paths[] = new restore_path_element('interactiveslide_round',
                 '/activity/interactiveslide/sessions/session/rounds/round');
             $paths[] = new restore_path_element('interactiveslide_response',
@@ -194,6 +196,43 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
     }
 
     /**
+     * Restore one guest.
+     *
+     * @param array $data
+     * @return void
+     */
+    protected function process_interactiveslide_guest($data) {
+        global $DB;
+
+        $data = (object)$data;
+        $oldid = $data->id;
+        $data->sessionid = $this->get_new_parentid('interactiveslide_session');
+        $data->timecreated = $this->apply_date_offset($data->timecreated);
+
+        $newid = $DB->insert_record('interactiveslide_guest', $data);
+        $this->set_mapping('interactiveslide_guest', $oldid, $newid);
+    }
+
+    /**
+     * The new id of a participant.
+     *
+     * A Moodle user maps through the user mapping. A guest is the negative of a
+     * guest row id, and maps through the guest rows restored with this session.
+     *
+     * @param int $userid as stored in the backup
+     * @return int 0 when the participant did not come across
+     */
+    protected function map_participant($userid): int {
+        $userid = (int)$userid;
+        if ($userid < 0) {
+            $guestid = (int)$this->get_mappingid('interactiveslide_guest', -$userid);
+            return $guestid ? -$guestid : 0;
+        }
+
+        return (int)$this->get_mappingid('user', $userid);
+    }
+
+    /**
      * Restore one round.
      *
      * @param array $data
@@ -229,7 +268,7 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $data->roundid = $this->get_new_parentid('interactiveslide_round');
         $data->sessionid = $this->get_mappingid('interactiveslide_session', $data->sessionid)
             ?: $this->get_new_parentid('interactiveslide_session');
-        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->userid = $this->map_participant($data->userid);
         $data->timecreated = $this->apply_date_offset($data->timecreated);
         $data->timemodified = $this->apply_date_offset($data->timemodified);
 
@@ -281,7 +320,7 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $data = (object)$data;
         $data->sessionid = $this->get_new_parentid('interactiveslide_session');
         $data->interactiveslideid = $this->get_new_parentid('interactiveslide');
-        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->userid = $this->map_participant($data->userid);
         $data->timejoined = $this->apply_date_offset($data->timejoined);
         $data->lastseen = $this->apply_date_offset($data->lastseen);
 
@@ -303,7 +342,7 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
 
         $data = (object)$data;
         $data->sessionid = $this->get_new_parentid('interactiveslide_session');
-        $data->userid = $this->get_mappingid('user', $data->userid);
+        $data->userid = $this->map_participant($data->userid);
         $data->awardedby = $this->get_mappingid('user', $data->awardedby) ?: 0;
         $data->timecreated = $this->apply_date_offset($data->timecreated);
 

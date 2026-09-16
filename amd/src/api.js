@@ -85,6 +85,14 @@ define(['core/ajax'], function(Ajax) {
             });
         },
 
+        joinAsGuest: function(cmid, name) {
+            return call('mod_interactiveslide_join_as_guest', {cmid: cmid, name: name});
+        },
+
+        removeGuest: function(cmid, userid) {
+            return call('mod_interactiveslide_remove_guest', {cmid: cmid, userid: userid});
+        },
+
         submitResponse: function(cmid, roundid, answer) {
             return call('mod_interactiveslide_submit_response', {
                 cmid: cmid,

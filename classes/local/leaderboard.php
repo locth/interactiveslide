@@ -148,17 +148,25 @@ class leaderboard {
                 'beststreak' => (int)$row->beststreak,
                 'fullname' => get_string('anonymousparticipant', 'mod_interactiveslide'),
                 'pictureurl' => '',
+                'isguest' => 0,
             ];
 
             if (isset($users[$userid])) {
                 $user = $users[$userid];
-                $entry['fullname'] = fullname($user);
-                $entry['pictureurl'] = $OUTPUT->user_picture($user, [
-                    'size' => 64,
-                    'link' => false,
-                    'visibletoscreenreaders' => false,
-                    'courseid' => $courseid,
-                ]);
+                $entry['fullname'] = userinfo::display_name($user);
+
+                if (!empty($user->isguest)) {
+                    // There is no account behind a guest to ask for a picture.
+                    $entry['pictureurl'] = userinfo::guest_avatar($user);
+                    $entry['isguest'] = 1;
+                } else {
+                    $entry['pictureurl'] = $OUTPUT->user_picture($user, [
+                        'size' => 64,
+                        'link' => false,
+                        'visibletoscreenreaders' => false,
+                        'courseid' => $courseid,
+                    ]);
+                }
             }
 
             $board[] = $entry;

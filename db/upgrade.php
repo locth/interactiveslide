@@ -89,5 +89,42 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090801, 'interactiveslide');
     }
 
+    if ($oldversion < 2026091400) {
+        // Guests of the course take part through a link that belongs to one
+        // session. Off unless the teacher turns it on, and the site's own switch
+        // has to be on first.
+        $table = new xmldb_table('interactiveslide');
+        $field = new xmldb_field('allowguests', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'anonymousresults');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Null for a session that was already running: its token is created the
+        // first time a presenter asks for the link.
+        $table = new xmldb_table('interactiveslide_session');
+        $field = new xmldb_field('guesttoken', XMLDB_TYPE_CHAR, '40', null,
+            null, null, null, 'joincode');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // One row per guest per session. Every other table records a guest under
+        // the negative of this id, so none of them needed a new column.
+        $table = new xmldb_table('interactiveslide_guest');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('displayname', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('removed', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('sessionid', XMLDB_KEY_FOREIGN, ['sessionid'], 'interactiveslide_session', ['id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026091400, 'interactiveslide');
+    }
+
     return true;
 }

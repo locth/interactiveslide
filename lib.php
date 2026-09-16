@@ -116,20 +116,10 @@ function interactiveslide_delete_instance($id) {
         $DB->delete_records_select('interactiveslide_slide', "id $slidesql", $slideparams);
     }
 
-    $sessionids = $DB->get_fieldset_select('interactiveslide_session', 'id', 'interactiveslideid = ?', [$id]);
-    if ($sessionids) {
-        [$sesssql, $sessparams] = $DB->get_in_or_equal($sessionids);
-        $roundids = $DB->get_fieldset_select('interactiveslide_round', 'id', "sessionid $sesssql", $sessparams);
-        if ($roundids) {
-            [$roundsql, $roundparams] = $DB->get_in_or_equal($roundids);
-            $DB->delete_records_select('interactiveslide_answer', "roundid $roundsql", $roundparams);
-            $DB->delete_records_select('interactiveslide_response', "roundid $roundsql", $roundparams);
-            $DB->delete_records_select('interactiveslide_round', "id $roundsql", $roundparams);
-        }
-        $DB->delete_records_select('interactiveslide_award', "sessionid $sesssql", $sessparams);
-        $DB->delete_records_select('interactiveslide_participant', "sessionid $sesssql", $sessparams);
-        $DB->delete_records_select('interactiveslide_session', "id $sesssql", $sessparams);
-    }
+    // One way to delete a session and everything that hangs off it. This used to
+    // be a second copy of that list, and a second copy is what forgets the next
+    // table to be added.
+    \mod_interactiveslide\local\session_manager::delete_all_sessions((int)$id);
 
     $DB->delete_records('interactiveslide', ['id' => $id]);
 

@@ -83,6 +83,14 @@ class provider implements
             'timecreated' => 'privacy:metadata:award:timecreated',
         ], 'privacy:metadata:award');
 
+        // Typed by a visitor with no account, so there is no user to export it
+        // to or to delete it for. It lives exactly as long as its session: the
+        // session's deletion, the activity's, and a course reset all remove it.
+        $collection->add_database_table('interactiveslide_guest', [
+            'displayname' => 'privacy:metadata:guest:displayname',
+            'timecreated' => 'privacy:metadata:guest:timecreated',
+        ], 'privacy:metadata:guest');
+
         return $collection;
     }
 
@@ -147,8 +155,9 @@ class provider implements
                   JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
                   JOIN {interactiveslide} i ON i.id = cm.instance
                   JOIN {interactiveslide_participant} p ON p.interactiveslideid = i.id
-                 WHERE cm.id = :cmid";
+                 WHERE cm.id = :cmid AND p.userid > 0";
 
+        // Guests are recorded under negative ids that belong to no user.
         $userlist->add_from_sql('userid', $sql, ['cmid' => $context->instanceid]);
 
         $presentersql = "SELECT s.createdby

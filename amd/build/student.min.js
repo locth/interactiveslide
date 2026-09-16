@@ -41,7 +41,8 @@ define([
         'beststreak', 'wordplaceholder', 'blankplaceholder', 'online', 'offline', 'connecting',
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
-        'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position'
+        'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
+        'guestbadge', 'errorguestname'
     ];
 
     /**
@@ -87,7 +88,10 @@ define([
             currentRoundId: 0,
             currentSlideId: 0,
             expiredRound: 0,
-            submitting: false
+            submitting: false,
+            joining: false,
+            guestFocused: false,
+            autoenter: !!config.autoenter
         };
 
         view.poller = Poller.create({
@@ -117,6 +121,7 @@ define([
             }
         });
 
+        bindGuestJoin(view);
         bindLobby(view);
     };
 
@@ -141,8 +146,16 @@ define([
             return;
         }
 
-        Util.toggle(lobby, true);
-        Util.toggle(live, false);
+        // Someone who scanned the code came to take part, not to read a star
+        // count, so they go straight in.
+        if (view.autoenter) {
+            Util.toggle(lobby, false);
+            Util.toggle(live, true);
+            view.poller.start();
+        } else {
+            Util.toggle(lobby, true);
+            Util.toggle(live, false);
+        }
 
         Util.actions(view.root, 'enter').forEach(function(button) {
             button.addEventListener('click', function() {
@@ -161,6 +174,107 @@ define([
                 window.location.reload();
             });
         });
+    };
+
+    /**
+     * The name form a guest fills in before joining.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindGuestJoin = function(view) {
+        var form = Util.region(view.root, 'guestjoinform');
+        if (!form) {
+            return;
+        }
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            var input = Util.region(view.root, 'guestname');
+            var status = Util.region(view.root, 'guestjoinstatus');
+            var button = Util.region(view.root, 'guestjoinbutton');
+            var name = input ? input.value.trim() : '';
+
+            if (name === '') {
+                if (status) {
+                    status.textContent = view.strings.errorguestname;
+                    status.dataset.tone = 'error';
+                }
+                if (input) {
+                    input.focus();
+                }
+                return;
+            }
+
+            // A slow phone and an impatient thumb must not make two guests.
+            if (view.joining) {
+                return;
+            }
+            view.joining = true;
+            if (button) {
+                button.disabled = true;
+            }
+            if (status) {
+                status.textContent = '';
+            }
+
+            Api.joinAsGuest(view.cmid, name).then(function(response) {
+                view.joining = false;
+                if (button) {
+                    button.disabled = false;
+                }
+                view.poller.adopt(Api.unwrap(response));
+                return response;
+            }).catch(function(error) {
+                view.joining = false;
+                if (button) {
+                    button.disabled = false;
+                }
+                if (status) {
+                    status.textContent = error.message || String(error);
+                    status.dataset.tone = 'error';
+                }
+                view.poller.refresh();
+            });
+        });
+    };
+
+    /**
+     * Put a guest's own screen up when that is what this browser should see.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {Boolean} true when a guest screen has the whole player
+     */
+    var applyGuest = function(view, state) {
+        var guest = state.guest || {};
+        var needsname = !!guest.needsname;
+        var removed = !!guest.removed;
+
+        Util.toggle(Util.region(view.root, 'guestjoin'), needsname);
+        Util.toggle(Util.region(view.root, 'guestremoved'), removed);
+
+        if (!needsname && !removed) {
+            view.guestFocused = false;
+            return false;
+        }
+
+        ['waiting', 'stage', 'answerpanel', 'resultpanel', 'leaderboard', 'mystars', 'myrank'].forEach(function(name) {
+            Util.toggle(Util.region(view.root, name), false);
+        });
+        stopTimer(view);
+
+        // Once, so the keyboard comes up without stealing focus back on every poll.
+        if (needsname && !view.guestFocused) {
+            var input = Util.region(view.root, 'guestname');
+            if (input) {
+                input.focus();
+            }
+            view.guestFocused = true;
+        }
+
+        return true;
     };
 
     /**
@@ -191,6 +305,12 @@ define([
      */
     var apply = function(view, state) {
         view.state = state;
+
+        // A guest who has not given a name, or whom the presenter removed, sees
+        // that and nothing else.
+        if (applyGuest(view, state)) {
+            return;
+        }
 
         var waiting = Util.region(view.root, 'waiting');
         var stage = Util.region(view.root, 'stage');

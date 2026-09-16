@@ -44,6 +44,29 @@
         </div>
 
         <div class="islide-present-right">
+            <div class="islide-invite" data-region="invite" hidden>
+                <button type="button" class="btn btn-outline-primary islide-invite-toggle" data-action="toggleinvite"
+                        aria-haspopup="true" aria-expanded="false" aria-controls="islide-invite-menu-{{cmid}}">
+                    {{#str}}inviteguests, mod_interactiveslide{{/str}}
+                    <span class="islide-invite-caret" aria-hidden="true">&#9662;</span>
+                </button>
+                <div class="islide-invite-menu" id="islide-invite-menu-{{cmid}}" data-region="invitemenu" hidden>
+                    <label class="islide-invite-label" for="islide-invite-link-{{cmid}}">
+                        {{#str}}guestlink, mod_interactiveslide{{/str}}
+                    </label>
+                    <input type="text" id="islide-invite-link-{{cmid}}" class="form-control islide-invite-link"
+                           data-region="invitelink" readonly>
+                    <div class="islide-invite-actions">
+                        <button type="button" class="btn btn-primary" data-action="copyguestlink">
+                            {{#str}}copyguestlink, mod_interactiveslide{{/str}}
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" data-action="showguestqr">
+                            {{#str}}showguestqr, mod_interactiveslide{{/str}}
+                        </button>
+                    </div>
+                    <p class="islide-invite-warning" data-region="invitewarning" role="note" hidden></p>
+                </div>
+            </div>
             <button type="button" class="btn btn-primary" data-action="startsession">
                 {{#str}}startsession, mod_interactiveslide{{/str}}
             </button>
@@ -269,4 +292,20 @@
     </div>
 
     <div class="islide-toast" data-region="toast" role="status" aria-live="polite" hidden></div>
+
+    <div class="islide-guestqr" data-region="guestqr" role="dialog" aria-modal="true"
+         aria-labelledby="islide-guestqr-title-{{cmid}}" hidden>
+        <div class="islide-guestqr-card">
+            <button type="button" class="islide-icon-btn islide-guestqr-close" data-action="closeguestqr"
+                    title="{{#str}}closeguestqr, mod_interactiveslide{{/str}}">
+                <span aria-hidden="true">&#10005;</span>
+                <span class="islide-sr-only">{{#str}}closeguestqr, mod_interactiveslide{{/str}}</span>
+            </button>
+            <h2 class="islide-guestqr-title" id="islide-guestqr-title-{{cmid}}">{{#str}}guestqrtitle, mod_interactiveslide{{/str}}</h2>
+            <div class="islide-guestqr-code" data-region="guestqrcode" role="img"
+                 aria-label="{{#str}}guestqrtitle, mod_interactiveslide{{/str}}"></div>
+            <p class="islide-guestqr-link" data-region="guestqrlink"></p>
+            <p class="islide-guestqr-desc">{{#str}}guestqr_desc, mod_interactiveslide{{/str}}</p>
+        </div>
+    </div>
 </div>

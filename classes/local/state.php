@@ -43,14 +43,18 @@ class state {
      *
      * @param stdClass $instance the deck record
      * @param context_module $context
-     * @param int $userid the viewer
      * @param bool $ispresenter whether the viewer drives the session
      * @return array
      */
-    public static function build(stdClass $instance, context_module $context, int $userid, bool $ispresenter): array {
+    public static function build(stdClass $instance, context_module $context, bool $ispresenter): array {
         global $DB;
 
         $session = session_manager::get_active_session((int)$instance->id);
+
+        // Who the viewer is as a participant: themselves, a named guest, or a
+        // guest who has not given a name yet. Everything below keys on this id.
+        $me = participation::resolve($instance, $context, $session);
+        $userid = $me->userid;
 
         // The presenter always sees the deck: their screen is the projector.
         // Withholding the image from students is a bandwidth decision, and it is
@@ -81,6 +85,13 @@ class state {
             'canaward' => has_capability('mod/interactiveslide:awardstars', $context),
             'myuserid' => $userid,
             'slidehidden' => $hideslides,
+            'guest' => [
+                'isguest' => $me->isguest,
+                'needsname' => $me->needsname,
+                'removed' => $me->removed,
+                'name' => $me->name,
+            ],
+            'guestlink' => '',
         ];
 
         if (!$session) {
@@ -95,9 +106,13 @@ class state {
         // The join code is a shortcut for the room, not a secret from students.
         $payload['joincode'] = (string)$session->joincode;
 
-        if (has_capability('mod/interactiveslide:submit', $context)
-                && session_manager::can_join($instance, $session, $userid)) {
+        if ($me->canparticipate && session_manager::can_join($instance, $session, $userid)) {
             session_manager::touch_participant($session, $userid);
+        }
+
+        // Only the screen that puts it on the projector is handed the link.
+        if ($ispresenter && guest::enabled($instance)) {
+            $payload['guestlink'] = guest::join_url((int)$context->instanceid, $session)->out(false);
         }
 
         $payload['participantcount'] = $DB->count_records('interactiveslide_participant',

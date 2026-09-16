@@ -130,4 +130,20 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/interactiveslide:manage',
     ],
+
+    'mod_interactiveslide_join_as_guest' => [
+        'classname'   => 'mod_interactiveslide\\external\\join_as_guest',
+        'description' => 'Take part in the running session as a guest, under a name.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:view',
+    ],
+
+    'mod_interactiveslide_remove_guest' => [
+        'classname'   => 'mod_interactiveslide\\external\\remove_guest',
+        'description' => 'Take a guest out of the running session, with their answers.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
 ];

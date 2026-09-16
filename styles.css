@@ -3371,3 +3371,303 @@ body.mod-interactiveslide-immersive .islide-transport {
     border-color: var(--islide-accent);
     color: #ffffff;
 }
+
+/* ---------- Guests ----------
+ *
+ * A guest sits on the same board as everyone else, marked, so the room reads one
+ * ranking and the teacher can still tell who has no account.
+ */
+
+.islide-guest-badge {
+    flex: none;
+    display: inline-block;
+    white-space: nowrap;
+    padding: .05em .5em;
+    border-radius: 999px;
+    border: 1px solid var(--islide-line);
+    background: var(--islide-canvas);
+    color: var(--islide-muted);
+    font-size: .68em;
+    font-weight: 700;
+    letter-spacing: .02em;
+    line-height: 1.5;
+    text-transform: uppercase;
+}
+
+/* The name gives way to the badge, and is cut with an ellipsis, down to the point
+ * where only a few letters would be left. Below that the badge steps aside
+ * instead: a board of badges with nobody's name on them is the failure this
+ * leaderboard already had once. The dashed avatar ring still marks the guest.
+ *
+ * Measured on the name cell itself rather than the screen, because the same row
+ * is drawn in a wide projector column, a narrow phone and the teacher's hub. */
+.islide-board-name-guest {
+    container-type: inline-size;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    min-width: 0;
+}
+
+@container (max-width: 7em) {
+    .islide-guest-badge {
+        display: none;
+    }
+}
+
+.islide-board-nametext {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The mark no squeeze can take away: a guest's initials sit in a dashed ring.
+ * Four classes deep so it outranks the square-avatar rule it sits on, and a
+ * border rather than a shadow, so it does not fight the gold ring of first place. */
+.mod-interactiveslide .islide-board-guest .islide-board-avatar .userinitials {
+    border: 2px dashed var(--islide-muted);
+}
+
+.islide-board-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+}
+
+.islide-remove-guest {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+    border: 1.5px solid var(--islide-line);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--islide-muted);
+    font-size: .8rem;
+    line-height: 1;
+    cursor: pointer;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.islide-remove-guest:hover,
+.islide-remove-guest:focus-visible {
+    background: var(--islide-danger-soft);
+    border-color: var(--islide-danger);
+    color: var(--islide-danger);
+}
+
+.islide-overlay-board .islide-remove-guest {
+    width: 1.9em;
+    height: 1.9em;
+    font-size: .7em;
+}
+
+/* The presenter bar gained a button. On a narrow screen its three groups wrap
+ * onto a second line rather than pushing the right-hand group off the edge. */
+@media (max-width: 700px) {
+    .islide-present-bar {
+        flex-wrap: wrap;
+        row-gap: .5rem;
+    }
+}
+
+/* The invite dropdown in the presenter bar. */
+
+.islide-invite {
+    position: relative;
+}
+
+.islide-invite-caret {
+    margin-left: .25rem;
+    font-size: .8em;
+}
+
+.islide-invite-menu {
+    position: absolute;
+    top: calc(100% + .45rem);
+    right: 0;
+    z-index: 1060;
+    width: min(24rem, calc(100vw - 2rem));
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    padding: .9rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    box-shadow: var(--islide-shadow-lg);
+    text-align: left;
+}
+
+.islide-invite-label {
+    margin: 0;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--islide-muted);
+}
+
+.islide-invite-link {
+    font-size: .85rem;
+    font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+}
+
+.islide-invite-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.islide-invite-actions .btn {
+    flex: 1 1 auto;
+}
+
+.islide-invite-warning {
+    margin: 0;
+    padding: .5rem .65rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-danger-soft);
+    color: var(--islide-ink);
+    font-size: .85rem;
+    line-height: 1.4;
+}
+
+/* The QR code, as big as the screen allows: it is read from the back row. */
+
+.islide-guestqr {
+    position: fixed;
+    inset: 0;
+    z-index: 1070;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1rem, 3vmin, 2.5rem);
+    background: rgba(15, 23, 42, .72);
+}
+
+.islide-guestqr-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: clamp(.5rem, 1.5vmin, 1rem);
+    max-width: min(92vw, 44rem);
+    max-height: 100%;
+    overflow: auto;
+    padding: clamp(1rem, 3vmin, 2rem) clamp(1rem, 4vmin, 2.5rem);
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    box-shadow: var(--islide-shadow-lg);
+    text-align: center;
+}
+
+.islide-guestqr-close {
+    position: absolute;
+    top: .75rem;
+    right: .75rem;
+}
+
+.islide-guestqr-title {
+    margin: 0;
+    padding: 0 2.5rem;
+    font-size: clamp(1.4rem, 3.4vmin, 2.6rem);
+    font-weight: 800;
+    color: var(--islide-ink);
+}
+
+/* White whatever the theme. A phone camera does not read the page's colour
+ * scheme, and a code sitting on a dark card loses its quiet zone. */
+.islide-guestqr-code {
+    width: min(64vmin, 34rem);
+    aspect-ratio: 1;
+    border-radius: var(--islide-radius-sm);
+    background: #ffffff;
+}
+
+.islide-guestqr-code svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.islide-guestqr-link {
+    margin: 0;
+    max-width: 100%;
+    font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+    font-size: clamp(.8rem, 1.8vmin, 1.1rem);
+    overflow-wrap: anywhere;
+    color: var(--islide-ink);
+}
+
+.islide-guestqr-desc {
+    margin: 0;
+    max-width: 36rem;
+    color: var(--islide-muted);
+}
+
+/* The student side: a name before anything else. */
+
+.islide-guestjoin {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .75rem;
+    padding: 2rem 1.25rem;
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    border: 1px solid var(--islide-line);
+    text-align: center;
+}
+
+.islide-guestjoin-title {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--islide-ink);
+}
+
+.islide-guestjoin-desc {
+    margin: 0;
+    max-width: 32rem;
+    color: var(--islide-muted);
+}
+
+.islide-guestjoin-form {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .6rem;
+    width: 100%;
+    max-width: 28rem;
+}
+
+/* At least 16px, or iOS zooms the whole page when the field takes focus. */
+.islide-guestjoin-form .form-control {
+    flex: 1 1 14rem;
+    min-width: 0;
+    font-size: max(1rem, 16px);
+}
+
+.islide-guestjoin-form .btn {
+    flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+    .islide-guestjoin-form .btn {
+        flex: 1 1 100%;
+    }
+}
+
+.islide-lobby-guestnote {
+    margin: 0;
+    max-width: 32rem;
+    padding: .75rem 1rem;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-accent-soft);
+    color: var(--islide-ink);
+}

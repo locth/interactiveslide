@@ -287,6 +287,61 @@ and rank sit in the header.
 
 ---
 
+## Inviting guests
+
+A lecture sometimes has people in the room who are not on the course: a visiting
+class, a colleague sitting in, prospective students at an open day. With guests
+allowed, they join from a link or a QR code on the projector and take part like
+everyone else.
+
+**Setting it up**
+
+1. *Site administration → Plugins → Activity modules → Interactive Slide → Let
+   teachers invite guests.* Off by default, because it lets people with no
+   account write to the database.
+2. In the activity's settings, tick **Guests may take part**.
+3. The course needs guest access switched on: *Course → Participants → Enrolment
+   methods → Guest access*. For visitors who are not signed in at all, the site
+   must also offer a guest login: *Guest login button* under *Plugins →
+   Authentication → Manage authentication*, or *Auto-login guests* under *Users →
+   Permissions → User policies*.
+
+The presenter console checks point 3 when it opens and says so inside **Invite
+guests** if something is in the way, before the code goes on the wall.
+
+**During the lecture**
+
+**Invite guests** in the presenter bar is a dropdown with the link, **Copy link**
+and **Show QR code**, which fills the screen for the back row. The link carries a
+token that belongs to the running session: a new session is a new link, and last
+week's code opens nothing.
+
+A visitor who opens it gives a name and goes straight in. Someone signed in but
+not enrolled takes part under their own account, with no name to type. An
+enrolled student whose capability was taken away does not get it back through the
+link.
+
+Guests are on the same leaderboard as students, marked **Guest**, and can be
+given stars. The presenter can take a guest off the board with ✕: their name,
+answers and stars go, and every tally drops them on the next poll.
+
+**What happens to their data**
+
+- Guest stars never reach the gradebook, and a guest at the top of the board does
+  not lower anyone's grade under the relative grading method.
+- A guest exists only inside the session they joined. Deleting the session or the
+  activity, or resetting the course, removes them.
+- Reports list them as *Name (guest)*, with no ID number.
+- Course backups with user data carry them along with the session. The link token
+  does not travel.
+
+Every guest is the same Moodle user, so that account cannot be what stars are
+recorded against. Each guest gets a row of their own for the session and is
+recorded everywhere else under the negative of that row's id, so every uniqueness
+rule, recalculation and ranking that holds for students holds for guests with no
+second code path. Which guest a browser is lives in its Moodle session, which the
+browser cannot write to.
+
 ## How it is put together
 
 ```
@@ -338,6 +393,8 @@ parts and manual awards are all covered.
   `grunt amd` in your Moodle root if you want them genuinely minified.
 - Editing a question after students have answered it is refused rather than
   silently invalidating the collected responses.
+- A guest is whoever holds that browser's Moodle session. Clearing cookies or
+  switching browser mid-lecture makes a new guest, starting from zero stars.
 - Question text and choices are stored exactly as typed, so `<` and `>` survive
   and every renderer escapes them. One narrow case is left: a fill-in-the-blank
   whose accepted answer is *only* punctuation (`<` on its own) still matches

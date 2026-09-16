@@ -31,7 +31,9 @@
         "sessionsjoinedtext": "From 3 session(s)",
         "acrossactivitiestext": "Across 3 activities",
         "sessionlive": true,
-        "reporturl": "#"
+        "reporturl": "#",
+        "isguestaccount": false,
+        "guestneedslink": false
     }
 }}
 <div class="islide-player" data-region="interactiveslide-player" data-cmid="{{cmid}}">
@@ -39,6 +41,7 @@
     <div class="islide-lobby" data-region="lobby" hidden>
         <h2 class="islide-lobby-name">{{name}}</h2>
 
+        {{^isguestaccount}}
         <div class="islide-lobby-stars">
             <div class="islide-lobby-stat islide-lobby-stat-main">
                 <span class="islide-lobby-value">
@@ -56,6 +59,11 @@
                 <span class="islide-lobby-sub">{{acrossactivitiestext}}</span>
             </div>
         </div>
+        {{/isguestaccount}}
+
+        {{#guestneedslink}}
+            <p class="islide-lobby-guestnote">{{#str}}guestneedslink, mod_interactiveslide{{/str}}</p>
+        {{/guestneedslink}}
 
         {{#hasintro}}<div class="islide-lobby-intro">{{{intro}}}</div>{{/hasintro}}
 
@@ -63,9 +71,11 @@
             <button type="button" class="btn btn-primary btn-lg" data-action="enter">
                 {{#str}}joinsession, mod_interactiveslide{{/str}}
             </button>
+            {{^isguestaccount}}
             <a class="btn btn-outline-secondary" href="{{reporturl}}">
                 {{#str}}myreports, mod_interactiveslide{{/str}}
             </a>
+            {{/isguestaccount}}
         </div>
 
         {{#sessionlive}}
@@ -102,6 +112,26 @@
     </header>
 
     <div class="islide-player-body">
+
+        <div class="islide-guestjoin" data-region="guestjoin" hidden>
+            <h2 class="islide-guestjoin-title">{{#str}}guestjointitle, mod_interactiveslide{{/str}}</h2>
+            <p class="islide-guestjoin-desc">{{#str}}guestjoin_desc, mod_interactiveslide{{/str}}</p>
+            <form class="islide-guestjoin-form" data-region="guestjoinform" novalidate>
+                <label class="islide-sr-only" for="islide-guestname-{{cmid}}">{{#str}}guestnameplaceholder, mod_interactiveslide{{/str}}</label>
+                <input type="text" id="islide-guestname-{{cmid}}" class="form-control form-control-lg"
+                       data-region="guestname" maxlength="40" autocomplete="nickname" enterkeyhint="go"
+                       placeholder="{{#str}}guestnameplaceholder, mod_interactiveslide{{/str}}">
+                <button type="submit" class="btn btn-primary btn-lg" data-region="guestjoinbutton">
+                    {{#str}}guestjoin, mod_interactiveslide{{/str}}
+                </button>
+            </form>
+            <p class="islide-answer-status" data-region="guestjoinstatus" role="status"></p>
+        </div>
+
+        <div class="islide-waiting islide-guestremoved" data-region="guestremoved" hidden>
+            <h2>{{#str}}guestremovedtitle, mod_interactiveslide{{/str}}</h2>
+            <p>{{#str}}guestremoved_desc, mod_interactiveslide{{/str}}</p>
+        </div>
 
         <div class="islide-waiting" data-region="waiting">
             <div class="islide-waiting-anim" aria-hidden="true">
