@@ -41,7 +41,8 @@ define([
         'beststreak', 'wordplaceholder', 'blankplaceholder', 'online', 'offline', 'connecting',
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
-        'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position'
+        'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
+        'autosubmitting'
     ];
 
     /**
@@ -87,7 +88,10 @@ define([
             currentRoundId: 0,
             currentSlideId: 0,
             expiredRound: 0,
-            submitting: false
+            submitting: false,
+            // What this page last sent, so the timer knows whether the form
+            // holds anything the server has not been told about.
+            submitted: {roundid: 0, payload: ''}
         };
 
         view.poller = Poller.create({
@@ -750,7 +754,7 @@ define([
      * @param {Object} view
      * @return {void}
      */
-    var submit = function(view) {
+    var submit = function(view, auto) {
         var state = view.state;
         if (!state || !state.round || !state.interaction || view.submitting) {
             return;
@@ -767,6 +771,13 @@ define([
             return;
         }
 
+        var encoded = JSON.stringify(payload);
+
+        if (auto && status) {
+            status.textContent = view.strings.autosubmitting;
+            status.dataset.tone = 'info';
+        }
+
         view.submitting = true;
         var button = Util.actions(view.root, 'submit')[0];
         if (button) {
@@ -775,6 +786,7 @@ define([
 
         Api.submitResponse(view.cmid, state.round.id, payload).then(function(response) {
             view.submitting = false;
+            view.submitted = {roundid: state.round.id, payload: encoded};
             if (button) {
                 button.disabled = false;
             }
@@ -792,6 +804,48 @@ define([
             // The round may have closed under us; a refresh tells us which.
             view.poller.refresh();
         });
+    };
+
+    /**
+     * Send what is in the form when the clock runs out.
+     *
+     * A student who typed an answer and did not press the button still meant to
+     * answer, so the device sends it for them. The server allows a few seconds
+     * past the deadline for exactly these, and pays no speed bonus on them.
+     *
+     * An answer already with the server is left alone: resending it would
+     * rewrite the time it was given, and on a question that allows changes it
+     * would take back the speed bonus it earned. The exception is a form this
+     * page has since changed, which is the student's newer answer.
+     *
+     * @param {Object} view
+     * @return {Boolean} true when something was sent
+     */
+    var autoSubmit = function(view) {
+        var state = view.state;
+        if (!state || !state.round || !state.interaction || view.submitting) {
+            return false;
+        }
+        if (state.round.status !== 'open') {
+            return false;
+        }
+
+        var payload = collect(view, state);
+        if (!payload) {
+            return false;
+        }
+
+        var answered = !!(state.myresponse && state.myresponse.submitted);
+        var changed = view.submitted.roundid === state.round.id
+            && view.submitted.payload !== JSON.stringify(payload);
+
+        if (answered && !changed) {
+            return false;
+        }
+
+        submit(view, true);
+
+        return true;
     };
 
     /**
@@ -820,8 +874,10 @@ define([
 
             stopTimer(view);
 
+            var sent = autoSubmit(view);
+
             var status = Util.region(view.root, 'answerstatus');
-            if (status && !(view.state.myresponse && view.state.myresponse.submitted)) {
+            if (!sent && status && !(view.state.myresponse && view.state.myresponse.submitted)) {
                 status.textContent = view.strings.timesup;
                 status.dataset.tone = 'error';
             }

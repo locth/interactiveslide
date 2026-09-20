@@ -107,10 +107,31 @@ Built for **Moodle 5.0+**.
   be worth the sum of its parts. An optional speed bonus pays extra stars for
   answering correctly with time to spare.
 
+  **Stars are paid when the question closes, not when the answer is sent.** An
+  answer that scored on arrival told the student it had scored: with answer
+  changing switched on, sending each option in turn and watching the header was
+  enough to find the right one. So a round contributes nothing to anybody's
+  total until it stops taking answers — by the timer, by **Stop collecting**, by
+  **Reveal answer**, or by the session ending — and closing it credits everyone
+  who answered in one pass. Running the same question again takes those stars
+  back off the board until it closes a second time. The answers themselves are
+  stored and marked as they arrive, as they always were; what changed is when
+  they are counted.
+
 **Timer**
 : Per question, in seconds. The countdown is drawn in the browser but **enforced
   on the server**: pausing the page buys no extra time, and the round closes on
   its own even if nobody is watching.
+
+  When the clock reaches zero, each phone sends whatever is in its form: a
+  student who typed an answer and did not press the button still meant to
+  answer. An answer already with the server is left alone, so a resend cannot
+  rewrite the time it was given or take back its speed bonus — unless the form
+  has been changed since, which is the student's newer answer. The whole room
+  sends at the same moment and some of those requests arrive after the round has
+  been closed, so the server accepts them for five seconds past the deadline.
+  Only a round that ran out of time has that window: one the teacher stopped by
+  hand is stopped.
 
 **Sessions**
 : Students see nothing until a teacher starts a session, and only ever see the
@@ -149,6 +170,29 @@ Built for **Moodle 5.0+**.
   nothing else. Sized like the rest of the overlay it fitted four, and the name —
   the only flexible column — collapsed to nothing between the picture and the
   count, leaving a row of medals with nobody on it.
+
+  A search box sits at the top of the board and stays there while the names
+  scroll. It ignores accents and letter case and takes the words in any order,
+  matching the start of each word: `an nguyen` finds *Nguyễn Văn An*, `duc`
+  finds *Đức*, and `an` does not drag in *Trần* or *Khánh*. While the whole
+  class fits on the board (it carries the top 100) the board filters itself;
+  in a bigger session the server searches every participant instead, so a
+  student ranked 150th is still found and is still shown as 150th.
+
+  **Stars for the class** next to the search gives everyone who has joined the
+  session — online or not — the same number of stars in one step. A small
+  panel asks how many before anything is written.
+
+  **Who gave an answer.** Once a multiple choice, dropdown or fill in the blank
+  result is on screen, the count at the end of each bar, and each typed-answer
+  chip, opens a panel listing everyone behind it, sorted by name, and it keeps
+  up as more answers come in. From there the same panel gives all of them
+  stars at once. It is for the question whose own answer key turned out to be
+  wrong: open the answer the class was right to give and credit everyone who
+  gave it. A group award adds stars, it never takes them away, is capped at
+  100 each, and reaches only people who are in the session and still allowed
+  to take part, whatever list the browser sends. It is logged per student
+  like any other award and shows up as one award row each in the reports.
 
   Presentation mode is drawn by the plugin itself rather than asked of the
   browser, because iPadOS does not give web pages the Fullscreen API at all — the
@@ -294,7 +338,7 @@ db/install.xml          10 tables: deck, slide, interaction, option, blank,
                         session, round, response, answer, participant, award
 classes/local/          the domain: session state machine, marking, aggregation,
                         leaderboard, grading, reporting
-classes/external/       13 web services, all AJAX
+classes/external/       15 web services, all AJAX
 amd/src/                poller, renderers, the three screens, the PDF importer
 templates/              static shells the JavaScript fills
 ```
@@ -343,6 +387,14 @@ parts and manual awards are all covered.
   whose accepted answer is *only* punctuation (`<` on its own) still matches
   nothing, because answers are compared with the surrounding punctuation
   trimmed. `0<x<1` is fine; a bare `<` should be a dropdown choice instead.
+- The answer panel of a fill in the blank lists the people behind each chip on
+  the board, and the board shows the twelve most common answers per blank. A
+  rare answer below those twelve has no chip, so it cannot be opened.
+- The send-at-time-up is done by the student's own device, so a phone that is
+  asleep, offline or on a page that was closed sends nothing. The five second
+  window after the deadline covers a slow network, not a closed browser.
+- Because stars are paid at the end of a question, the leaderboard does not move
+  while one is running. It jumps when the question closes.
 
 ## Licence
 

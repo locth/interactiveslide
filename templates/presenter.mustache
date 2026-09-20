@@ -215,8 +215,64 @@
                     <div class="islide-overlay-panes">
                         <div class="islide-overlay-body" data-region="overlay-body"></div>
 
-                        <div class="islide-overlay-board" data-region="overlay-board" hidden></div>
+                        <div class="islide-overlay-board" data-region="overlay-board" hidden>
+                            <div class="islide-board-tools">
+                                <div class="islide-board-search">
+                                    <span class="islide-board-search-icon" aria-hidden="true">&#128269;</span>
+                                    <input type="search" class="islide-board-search-input" data-region="boardsearch"
+                                           autocomplete="off" spellcheck="false" maxlength="100"
+                                           placeholder="{{#str}}boardsearch, mod_interactiveslide{{/str}}"
+                                           aria-label="{{#str}}boardsearch, mod_interactiveslide{{/str}}">
+                                    <button type="button" class="islide-board-search-clear" data-action="clearboardsearch"
+                                            title="{{#str}}boardsearchclear, mod_interactiveslide{{/str}}" hidden>
+                                        <span aria-hidden="true">&#10005;</span>
+                                        <span class="islide-sr-only">{{#str}}boardsearchclear, mod_interactiveslide{{/str}}</span>
+                                    </button>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary islide-award-class"
+                                        data-action="awardclass" hidden>
+                                    <span aria-hidden="true">+&#9733;</span>
+                                    {{#str}}awardclass, mod_interactiveslide{{/str}}
+                                </button>
+                            </div>
+                            <div class="islide-board-list" data-region="overlay-board-list"></div>
+                        </div>
                     </div>
+
+                    <section class="islide-groupaward" data-region="groupaward" role="dialog"
+                             aria-labelledby="islide-groupaward-title" hidden>
+                        <header class="islide-groupaward-head">
+                            <div class="islide-groupaward-heading">
+                                <h3 class="islide-groupaward-title" id="islide-groupaward-title"
+                                    data-region="groupaward-title"></h3>
+                                <p class="islide-groupaward-meta" data-region="groupaward-meta"></p>
+                            </div>
+                            <button type="button" class="islide-icon-btn" data-action="closegroupaward"
+                                    title="{{#str}}closegroupaward, mod_interactiveslide{{/str}}">
+                                <span aria-hidden="true">&#10005;</span>
+                                <span class="islide-sr-only">{{#str}}closegroupaward, mod_interactiveslide{{/str}}</span>
+                            </button>
+                        </header>
+                        <ol class="islide-groupaward-list" data-region="groupaward-list"></ol>
+                        <footer class="islide-groupaward-foot" data-region="groupaward-foot">
+                            <div class="islide-stepper" role="group"
+                                 aria-label="{{#str}}groupstars, mod_interactiveslide{{/str}}">
+                                <span class="islide-stepper-label">{{#str}}groupstars, mod_interactiveslide{{/str}}</span>
+                                <button type="button" class="islide-stepper-btn" data-action="groupstarsless"
+                                        title="{{#str}}groupstarsless, mod_interactiveslide{{/str}}">
+                                    <span aria-hidden="true">&minus;</span>
+                                    <span class="islide-sr-only">{{#str}}groupstarsless, mod_interactiveslide{{/str}}</span>
+                                </button>
+                                <output class="islide-stepper-value" data-region="groupstars">1</output>
+                                <button type="button" class="islide-stepper-btn" data-action="groupstarsmore"
+                                        title="{{#str}}groupstarsmore, mod_interactiveslide{{/str}}">
+                                    <span aria-hidden="true">+</span>
+                                    <span class="islide-sr-only">{{#str}}groupstarsmore, mod_interactiveslide{{/str}}</span>
+                                </button>
+                            </div>
+                            <button type="button" class="btn btn-primary" data-action="confirmgroupaward"></button>
+                        </footer>
+                    </section>
                 </div>
             </div>
 

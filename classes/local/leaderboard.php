@@ -64,6 +64,89 @@ class leaderboard {
         return self::decorate($rows, $context, $anonymous, $selfuserid);
     }
 
+    /** @var int How many matches a name search returns. */
+    public const SEARCH_LIMIT = 50;
+
+    /**
+     * Participants of a session whose name matches a search, with their true rank.
+     *
+     * The presenter's board is capped, and a lecturer looking for one student in
+     * a hall of two hundred must not be told "nobody" because that student sits
+     * below the cap. So the whole session is ranked, and only then filtered:
+     * student 150 is found, and is still shown as 150th.
+     *
+     * Names are matched here rather than in SQL. Accent-insensitive matching is
+     * not something every supported database does the same way, and a session
+     * is a classroom, not a directory.
+     *
+     * @param int $sessionid
+     * @param context_module $context
+     * @param string $query as typed
+     * @param int $limit
+     * @return array[] rows shaped as {@see self::get_session_board()} returns them
+     */
+    public static function search_session_board(int $sessionid, context_module $context, string $query,
+            int $limit = self::SEARCH_LIMIT): array {
+        global $DB;
+
+        if (text_util::search_fold($query) === '') {
+            return [];
+        }
+
+        $rows = $DB->get_records_sql(
+            'SELECT id, userid, totalstars, correctcount, responsecount, beststreak
+               FROM {interactiveslide_participant}
+              WHERE sessionid = :sessionid
+           ORDER BY totalstars DESC, correctcount DESC, timejoined ASC',
+            ['sessionid' => $sessionid]
+        );
+        if (!$rows) {
+            return [];
+        }
+
+        $ranks = self::ranks($rows);
+        $users = userinfo::load(array_map(static fn($row) => (int)$row->userid, $rows));
+
+        $matches = [];
+        foreach ($rows as $key => $row) {
+            $user = $users[(int)$row->userid] ?? null;
+            if ($user && text_util::name_matches(fullname($user), $query)) {
+                $matches[$key] = $row;
+                if (count($matches) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return self::decorate($matches, $context, false, 0, $ranks, $users);
+    }
+
+    /**
+     * Competition ranks for rows already in board order: ties share a rank and
+     * the next rank skips past them.
+     *
+     * @param stdClass[] $rows
+     * @return int[] keyed as the rows are
+     */
+    public static function ranks(array $rows): array {
+        $ranks = [];
+        $rank = 0;
+        $position = 0;
+        $previousstars = null;
+
+        foreach ($rows as $key => $row) {
+            $position++;
+            $stars = (int)$row->totalstars;
+            if ($stars !== $previousstars) {
+                $rank = $position;
+                $previousstars = $stars;
+            }
+            $ranks[$key] = $rank;
+        }
+
+        return $ranks;
+    }
+
     /**
      * Ranked participants across every session of a deck.
      *
@@ -104,10 +187,12 @@ class leaderboard {
      * @param context_module $context
      * @param bool $anonymous
      * @param int $selfuserid this user keeps their name even when anonymous
+     * @param int[]|null $ranks ranks worked out over a larger board, keyed as the rows are
+     * @param stdClass[]|null $users user records the caller already loaded
      * @return array[]
      */
     private static function decorate(array $rows, context_module $context, bool $anonymous,
-            int $selfuserid = 0): array {
+            int $selfuserid = 0, ?array $ranks = null, ?array $users = null): array {
         global $OUTPUT;
 
         if (!$rows) {
@@ -122,25 +207,17 @@ class leaderboard {
                 $wanted[] = (int)$row->userid;
             }
         }
-        $users = userinfo::load($wanted);
+        $users = $users ?? userinfo::load($wanted);
         $courseid = $context->get_course_context()->instanceid;
+        $ranks = $ranks ?? self::ranks($rows);
 
         $board = [];
-        $rank = 0;
-        $position = 0;
-        $previousstars = null;
 
-        foreach ($rows as $row) {
-            $position++;
+        foreach ($rows as $key => $row) {
             $stars = (int)$row->totalstars;
-            if ($stars !== $previousstars) {
-                $rank = $position;
-                $previousstars = $stars;
-            }
-
             $userid = (int)$row->userid;
             $entry = [
-                'rank' => $rank,
+                'rank' => $ranks[$key],
                 'userid' => ($anonymous && $userid !== $selfuserid) ? 0 : $userid,
                 'stars' => $stars,
                 'correctcount' => (int)$row->correctcount,

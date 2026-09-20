@@ -45,8 +45,16 @@ define([
         'beststreak', 'leaderboard', 'stars', 'sessionstarted', 'sessionended',
         'roundopened', 'roundclosedtoast', 'answerrevealed', 'awardstar', 'awardreason', 'starawarded',
         'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers',
-        'showresultscreen', 'hideresultscreen', 'novideo', 'video'
+        'showresultscreen', 'hideresultscreen', 'novideo', 'video',
+        'awardclasstitle', 'awardclass_desc', 'awardgroup', 'groupawarded', 'groupawardreason',
+        'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching'
     ];
+
+    /** @var {Number} The most stars the group panel offers; the server allows up to 100. */
+    var GROUP_STARS_MAX = 99;
+
+    /** @var {Number} How long typing pauses before the server is asked to search. */
+    var SEARCH_DELAY = 250;
 
     /**
      * Boot the presenter console.
@@ -98,7 +106,15 @@ define([
             openedRound: 0,
             expiredRound: 0,
             canAward: !!config.canaward,
-            busy: false
+            busy: false,
+            // What the teacher has typed into the board's search box.
+            boardQuery: '',
+            // A server search, used only when the class is bigger than the board.
+            search: {inflight: false, result: null, timer: null},
+            // The panel that gives several people stars at once: the whole class,
+            // or everyone behind one answer. Null while it is closed.
+            group: null,
+            groupStars: 1
         };
 
         view.poller = Poller.create({
@@ -117,6 +133,8 @@ define([
 
         loadDeck(view);
         bindControls(view);
+        bindBoardSearch(view);
+        bindGroupAward(view);
         bindKeyboard(view);
 
         view.poller.start();
@@ -302,6 +320,7 @@ define([
         });
 
         on('closeoverlay', function() {
+            closeGroup(view);
             view.overlayDismissed = true;
             Util.toggle(Util.region(view.root, 'overlay'), false);
         });
@@ -380,6 +399,13 @@ define([
             // Escape puts the pen down before it touches anything else, then on a
             // second press leaves presentation mode. One key, one step at a time.
             if (event.key === 'Escape') {
+                // The group panel sits on top of everything else in the overlay.
+                if (view.group) {
+                    event.preventDefault();
+                    closeGroup(view);
+                    return;
+                }
+
                 if (view.annotate && view.annotate.isActive()) {
                     event.preventDefault();
                     var off = view.root.querySelector('[data-annotate-tool="off"]');
@@ -426,6 +452,7 @@ define([
                     break;
 
                 case 'Escape':
+                    closeGroup(view);
                     view.overlayDismissed = true;
                     Util.toggle(Util.region(view.root, 'overlay'), false);
                     break;
@@ -535,6 +562,10 @@ define([
         if (state.round && state.round.id !== previousRound) {
             view.boardVisible = false;
             view.expiredRound = 0;
+        }
+
+        if (!state.hassession) {
+            setBoardQuery(view, '');
         }
 
         // Opening a round raises the overlay, whoever opened it and from
@@ -694,6 +725,7 @@ define([
 
         if (!wantOverlay) {
             Util.toggle(overlay, false);
+            closeGroup(view);
             stopTimer(view);
             return;
         }
@@ -726,24 +758,30 @@ define([
             Render.results(body, hasRound ? state.results : null, view.strings, {
                 large: true,
                 award: view.canAward,
+                // Every tallied answer opens the list of who gave it.
+                voters: true,
                 // A video round has no tally to draw; the renderer needs the
                 // interaction itself to know what to put on the projector.
                 interaction: hasRound ? state.interaction : null
             });
         }
 
-        if (view.boardVisible && state.leaderboard.length) {
+        if (view.boardVisible) {
             // The whole board. It used to be cut to eight rows because it sat
             // under the question and any more pushed the question off the top;
             // in its own column it scrolls instead, so a class of eighty is all
             // there and the teacher can reach anyone to hand them a star.
-            Render.leaderboard(boardPanel, state.leaderboard, view.strings, {
-                award: view.canAward
-            });
+            drawBoard(view, state);
             Util.toggle(boardPanel, true);
         } else {
             Util.toggle(boardPanel, false);
         }
+
+        // The class panel is opened from the board, so it goes when the board does.
+        if (!view.boardVisible && view.group && view.group.kind === 'class') {
+            closeGroup(view);
+        }
+        refreshGroup(view, state);
 
         var timer = Util.region(view.root, 'timer');
         if (hasRound && state.round.timelimit > 0) {
@@ -760,6 +798,422 @@ define([
             stopTimer(view);
             Util.toggle(timer, false);
         }
+    };
+
+    /**
+     * Draw the board, narrowed to the search when there is one.
+     *
+     * While the whole class fits on the board the board filters itself, which
+     * is instant and follows every poll for free. The board is capped, though,
+     * and a class can be bigger than the cap: then the server searches the
+     * whole session, so a student ranked below the cap can still be found and
+     * handed a star.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var drawBoard = function(view, state) {
+        var list = Util.region(view.root, 'overlay-board-list');
+        var query = view.boardQuery;
+
+        Util.actions(view.root, 'awardclass').forEach(function(button) {
+            button.hidden = !(view.canAward && state.hassession && state.participantcount > 0);
+        });
+
+        var options = {award: view.canAward};
+        var board = state.leaderboard;
+
+        if (Util.fold(query) !== '') {
+            options.emptyText = view.strings.boardnomatch;
+
+            if (state.participantcount <= state.leaderboard.length) {
+                board = state.leaderboard.filter(function(entry) {
+                    return Util.nameMatches(entry.fullname, query);
+                });
+            } else {
+                var result = view.search.result;
+                var current = result && result.query === query;
+
+                if (!current || result.revision !== state.revision) {
+                    scheduleSearch(view, 0);
+                }
+
+                if (current) {
+                    // The same search on an older board: show it while the new
+                    // one is on its way, rather than flashing an empty list.
+                    board = result.board;
+                } else {
+                    board = [];
+                    options.emptyText = view.strings.boardsearching;
+                }
+            }
+        }
+
+        if (list) {
+            Render.leaderboard(list, board, view.strings, options);
+        }
+    };
+
+    /**
+     * Ask the server to search the session, once at a time.
+     *
+     * A search is never sent while another is out. When it returns the board is
+     * redrawn, and if the query or the board changed meanwhile that redraw asks
+     * again, for whatever is current by then.
+     *
+     * @param {Object} view
+     * @param {Number} delay milliseconds to wait for typing to settle
+     * @return {void}
+     */
+    var scheduleSearch = function(view, delay) {
+        var search = view.search;
+
+        if (search.inflight) {
+            return;
+        }
+
+        if (search.timer) {
+            if (!delay) {
+                return;
+            }
+            window.clearTimeout(search.timer);
+        }
+
+        search.timer = window.setTimeout(function() {
+            search.timer = null;
+            var query = view.boardQuery;
+            var revision = view.state ? view.state.revision : 0;
+
+            if (Util.fold(query) === '') {
+                return;
+            }
+
+            search.inflight = true;
+
+            var done = function(board) {
+                search.inflight = false;
+                search.result = {query: query, revision: revision, board: board};
+                if (view.state && view.boardVisible) {
+                    drawBoard(view, view.state);
+                }
+            };
+
+            Api.searchLeaderboard(view.cmid, query).then(function(response) {
+                done(JSON.parse(response.board) || []);
+                return response;
+            }).catch(function(error) {
+                // Stored as an answer, so the same search is not retried on
+                // every poll; the next keystroke or star tries again.
+                done([]);
+                Util.toast(view.root, error.message || String(error), 'error');
+            });
+        }, delay);
+    };
+
+    /**
+     * Set the search, keeping the box and its clear button in step.
+     *
+     * @param {Object} view
+     * @param {String} query
+     * @return {void}
+     */
+    var setBoardQuery = function(view, query) {
+        view.boardQuery = query;
+
+        var input = Util.region(view.root, 'boardsearch');
+        if (input && input.value !== query) {
+            input.value = query;
+        }
+        Util.actions(view.root, 'clearboardsearch').forEach(function(button) {
+            button.hidden = query === '';
+        });
+    };
+
+    /**
+     * Wire up the board's search box.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindBoardSearch = function(view) {
+        var input = Util.region(view.root, 'boardsearch');
+        if (!input) {
+            return;
+        }
+
+        var redraw = function() {
+            if (view.state && view.boardVisible) {
+                drawBoard(view, view.state);
+            }
+        };
+
+        input.addEventListener('input', function() {
+            setBoardQuery(view, input.value);
+            var state = view.state;
+            if (state && Util.fold(input.value) !== '' && state.participantcount > state.leaderboard.length) {
+                // Typing a name is several requests' worth of keystrokes.
+                scheduleSearch(view, SEARCH_DELAY);
+            }
+            redraw();
+        });
+
+        input.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && input.value !== '') {
+                // First Escape empties the box; the next one is the console's.
+                event.preventDefault();
+                event.stopPropagation();
+                setBoardQuery(view, '');
+                redraw();
+            }
+        });
+
+        Util.actions(view.root, 'clearboardsearch').forEach(function(button) {
+            button.addEventListener('click', function() {
+                setBoardQuery(view, '');
+                redraw();
+                input.focus();
+            });
+        });
+    };
+
+    /**
+     * Wire up the panel that gives several people stars at once.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindGroupAward = function(view) {
+        var body = Util.region(view.root, 'overlay-body');
+        if (body) {
+            body.addEventListener('click', function(event) {
+                var button = event.target.closest('[data-voters-key]');
+                if (button) {
+                    openGroup(view, {kind: 'voters', key: button.dataset.votersKey});
+                }
+            });
+        }
+
+        var on = function(action, handler) {
+            Util.actions(view.root, action).forEach(function(button) {
+                button.addEventListener('click', handler);
+            });
+        };
+
+        on('awardclass', function() {
+            openGroup(view, {kind: 'class'});
+        });
+
+        on('closegroupaward', function() {
+            closeGroup(view);
+        });
+
+        var step = function(delta) {
+            view.groupStars = Math.max(1, Math.min(GROUP_STARS_MAX, view.groupStars + delta));
+            if (view.state) {
+                refreshGroup(view, view.state);
+            }
+        };
+        on('groupstarsless', function() {
+            step(-1);
+        });
+        on('groupstarsmore', function() {
+            step(1);
+        });
+
+        on('confirmgroupaward', function() {
+            var target = view.group && view.group.target;
+            if (!target || !target.count || !view.canAward) {
+                return;
+            }
+            var stars = view.groupStars;
+
+            act(view, function() {
+                return Api.awardStarsGroup(view.cmid, target.everyone, target.userids, stars,
+                    view.strings.groupawardreason);
+            }).then(function(response) {
+                if (response) {
+                    closeGroup(view);
+                    Util.toast(view.root, view.strings.groupawarded
+                        .replace('{$a->stars}', stars)
+                        .replace('{$a->count}', response.awarded), 'success');
+                }
+                return response;
+            }).catch(Notification.exception);
+        });
+    };
+
+    /**
+     * Open the group panel.
+     *
+     * @param {Object} view
+     * @param {Object} group kind "class", or kind "voters" with the answer's key
+     * @return {void}
+     */
+    var openGroup = function(view, group) {
+        view.group = {
+            kind: group.kind,
+            key: group.key || '',
+            roundid: view.state && view.state.round ? view.state.round.id : 0,
+            signature: '',
+            target: null
+        };
+        view.groupStars = 1;
+
+        if (view.state) {
+            refreshGroup(view, view.state);
+        }
+
+        var panel = Util.region(view.root, 'groupaward');
+        if (view.group && panel) {
+            var close = panel.querySelector('[data-action="closegroupaward"]');
+            if (close) {
+                close.focus();
+            }
+        }
+    };
+
+    /**
+     * Close the group panel.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var closeGroup = function(view) {
+        view.group = null;
+        Util.toggle(Util.region(view.root, 'groupaward'), false);
+    };
+
+    /**
+     * Find an answer in the results by the key the server gave it.
+     *
+     * @param {Object} results
+     * @param {String} key
+     * @param {Object} strings
+     * @return {Object|null} with the answer's label, count, userids and iscorrect
+     */
+    var findAnswer = function(results, key, strings) {
+        if (!results) {
+            return null;
+        }
+
+        var letters = 'ABCDEFGHIJ';
+        var found = null;
+
+        (results.choices || []).forEach(function(choice, index) {
+            if (choice.key === key) {
+                found = {
+                    label: (letters.charAt(index) || (index + 1)) + '. ' + choice.text,
+                    entry: choice
+                };
+            }
+        });
+
+        var blanks = results.blanks || [];
+        blanks.forEach(function(blank, index) {
+            (blank.entries || []).forEach(function(entry) {
+                if (entry.key === key) {
+                    // Which blank matters once there is more than one of them.
+                    var prefix = blanks.length > 1
+                        ? (blank.label || (strings.blank + ' ' + (index + 1))) + ': '
+                        : '';
+                    found = {label: prefix + entry.text, entry: entry};
+                }
+            });
+        });
+
+        return found;
+    };
+
+    /**
+     * Bring the group panel up to date with the latest state.
+     *
+     * Called on every state, so the list behind an answer grows as answers
+     * arrive, and the panel closes itself when what it pointed at is gone: the
+     * session ended, the round was reset, or another question came up.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var refreshGroup = function(view, state) {
+        var panel = Util.region(view.root, 'groupaward');
+        var group = view.group;
+        if (!panel || !group) {
+            return;
+        }
+
+        var strings = view.strings;
+        var title = '';
+        var meta = '';
+        var names = [];
+        var target = null;
+
+        if (!state.hassession) {
+            closeGroup(view);
+            return;
+        }
+
+        if (group.kind === 'class') {
+            title = strings.awardclasstitle;
+            meta = strings.awardclass_desc.replace('{$a}', state.participantcount);
+            target = {everyone: true, userids: [], count: state.participantcount};
+        } else {
+            var roundid = state.round ? state.round.id : 0;
+            var found = roundid === group.roundid ? findAnswer(state.results, group.key, strings) : null;
+            var userids = found && found.entry.userids ? found.entry.userids : [];
+            if (!userids.length) {
+                closeGroup(view);
+                return;
+            }
+
+            var people = {};
+            (state.results.people || []).forEach(function(person) {
+                people[person.userid] = person.fullname;
+            });
+            names = userids.map(function(userid) {
+                return people[userid] || '';
+            }).sort(function(a, b) {
+                return a.localeCompare(b, 'vi', {sensitivity: 'base'});
+            });
+
+            title = strings.voterstitle.replace('{$a}', found.label);
+            meta = strings.voterscount.replace('{$a}', userids.length) +
+                (found.entry.iscorrect ? ' · ' + strings.correctanswer : '');
+            target = {everyone: false, userids: userids, count: userids.length};
+        }
+
+        group.target = target;
+
+        var signature = JSON.stringify([title, meta, names]);
+        if (signature !== group.signature) {
+            group.signature = signature;
+            Util.region(view.root, 'groupaward-title').textContent = title;
+            Util.region(view.root, 'groupaward-meta').textContent = meta;
+
+            var list = Util.region(view.root, 'groupaward-list');
+            list.innerHTML = names.map(function(name) {
+                return '<li class="islide-groupaward-name">' + Util.escape(name) + '</li>';
+            }).join('');
+            list.hidden = names.length === 0;
+        }
+
+        Util.region(view.root, 'groupstars').textContent = view.groupStars;
+        Util.toggle(Util.region(view.root, 'groupaward-foot'), view.canAward);
+        Util.actions(view.root, 'groupstarsless').forEach(function(button) {
+            button.disabled = view.groupStars <= 1;
+        });
+        Util.actions(view.root, 'groupstarsmore').forEach(function(button) {
+            button.disabled = view.groupStars >= GROUP_STARS_MAX;
+        });
+        Util.actions(view.root, 'confirmgroupaward').forEach(function(button) {
+            button.textContent = strings.awardgroup
+                .replace('{$a->stars}', view.groupStars)
+                .replace('{$a->count}', target.count);
+            button.disabled = !target.count;
+        });
+
+        Util.toggle(panel, true);
     };
 
     /**

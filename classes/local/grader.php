@@ -53,7 +53,8 @@ class grader {
 
         // Re-check the timer here: a slow poll may not have closed the round yet.
         session_manager::close_if_expired($round);
-        if ($round->status !== session_manager::ROUND_OPEN) {
+        if ($round->status !== session_manager::ROUND_OPEN
+                && !session_manager::in_grace_window($round)) {
             throw new moodle_exception('errorroundclosed', 'mod_interactiveslide');
         }
 

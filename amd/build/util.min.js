@@ -175,7 +175,56 @@ define([], function() {
         widget.dataset.level = fraction <= 0 ? 'over' : (fraction < 0.2 ? 'low' : 'normal');
     };
 
+    /**
+     * Fold a name for searching: lower case, no accents, single spaces.
+     *
+     * The same rules as text_util::search_fold() on the server, so the board
+     * finds the same people whether it filters itself or asks. Vietnamese marks
+     * all decompose into U+0300..U+036F; "đ" is a letter of its own.
+     *
+     * @param {String} text
+     * @return {String}
+     */
+    var fold = function(text) {
+        var value = String(text === null || text === undefined ? '' : text);
+        if (value.normalize) {
+            value = value.normalize('NFD');
+        }
+        return value
+            .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[\u0111\u0110]/g, 'd')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+    };
+
+    /**
+     * Whether every word of a search starts some word of a name, in any order.
+     *
+     * The same rule as text_util::name_matches(): "an nguyen" finds
+     * "Nguyễn Văn An", and "an" does not find "Trần".
+     *
+     * @param {String} name
+     * @param {String} query as typed
+     * @return {Boolean} false for an empty query
+     */
+    var nameMatches = function(name, query) {
+        var words = fold(query);
+        if (words === '') {
+            return false;
+        }
+        var namewords = fold(name).split(' ');
+        return words.split(' ').every(function(word) {
+            return namewords.some(function(nameword) {
+                return nameword.indexOf(word) === 0;
+            });
+        });
+    };
+
     return {
+        fold: fold,
+        nameMatches: nameMatches,
         region: region,
         actions: actions,
         escape: escape,

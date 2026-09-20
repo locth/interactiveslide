@@ -3371,3 +3371,276 @@ body.mod-interactiveslide-immersive .islide-transport {
     border-color: var(--islide-accent);
     color: #ffffff;
 }
+
+/* ---------- Board search, class stars and answer lists ---------- */
+
+/* The tools stay put while the names scroll under them: a lecturer looking for
+ * one student in a long board should not have to scroll back up to type. */
+.islide-board-tools {
+    position: sticky;
+    top: -.75rem;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin: -.75rem -.75rem .6rem;
+    padding: .75rem .75rem .6rem;
+    background: var(--islide-surface);
+    border-bottom: 1px solid var(--islide-line);
+}
+
+.islide-board-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
+.islide-board-search-icon {
+    position: absolute;
+    left: .65rem;
+    font-size: .85rem;
+    opacity: .55;
+    pointer-events: none;
+}
+
+.mod-interactiveslide .islide-board-search-input {
+    width: 100%;
+    min-width: 0;
+    height: 2.25rem;
+    padding: 0 2.2rem 0 2rem;
+    border: 1px solid var(--islide-line);
+    border-radius: 999px;
+    background: var(--islide-canvas);
+    color: var(--islide-ink);
+    /* 16px or more, or iOS zooms the whole console in when the box is tapped. */
+    font-size: max(1rem, 16px);
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.mod-interactiveslide .islide-board-search-input::-webkit-search-cancel-button {
+    display: none;
+}
+
+.mod-interactiveslide .islide-board-search-input:focus {
+    outline: none;
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+.islide-board-search-clear {
+    position: absolute;
+    right: .3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--islide-muted);
+    cursor: pointer;
+}
+
+.islide-board-search-clear:hover,
+.islide-board-search-clear:focus-visible {
+    background: var(--islide-accent-soft);
+    color: var(--islide-ink);
+}
+
+.islide-award-class {
+    flex: none;
+    white-space: nowrap;
+}
+
+/* An answer that opens the list of who gave it. It has to look pressable
+ * without shouting over the result the room is reading. */
+.islide-voters-btn {
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+
+.islide-voters-btn:focus-visible {
+    outline: 2px solid var(--islide-accent);
+    outline-offset: 2px;
+}
+
+.islide-bar-count-voters {
+    display: inline-flex;
+    align-items: center;
+    gap: .35em;
+    padding: .15em .6em;
+    border: 1px solid var(--islide-line);
+    border-radius: 999px;
+    background: var(--islide-surface);
+    font-weight: 700;
+    transition: border-color .15s ease, background .15s ease;
+}
+
+.islide-bar-count-voters:hover {
+    border-color: var(--islide-accent);
+    background: var(--islide-accent-soft);
+}
+
+.islide-voters-icon {
+    font-size: .8em;
+    opacity: .7;
+}
+
+.mod-interactiveslide .islide-chip.islide-chip-voters {
+    padding: 0;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+.islide-chip-voters .islide-voters-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .3rem .7rem;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+}
+
+.islide-overlay-body .islide-chip-voters .islide-voters-btn {
+    padding: clamp(.3rem, .6vw, .6rem) clamp(.7rem, 1.2vw, 1.2rem);
+    gap: .55em;
+}
+
+.islide-chip-voters:hover {
+    border-color: var(--islide-accent);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+/* The panel that credits several people at once. It sits over the result
+ * rather than replacing it, so the answer being credited stays in view. */
+.islide-groupaward {
+    position: absolute;
+    top: clamp(.75rem, 2vw, 1.5rem);
+    right: clamp(.75rem, 2vw, 1.5rem);
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    width: min(26rem, calc(100% - 1.5rem));
+    /* As tall as its list needs, and never taller than the overlay. */
+    max-height: calc(100% - 2 * clamp(.75rem, 2vw, 1.5rem));
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    box-shadow: var(--islide-shadow-lg);
+    animation: islide-fadein .18s ease both;
+}
+
+.islide-groupaward-head {
+    display: flex;
+    align-items: flex-start;
+    gap: .75rem;
+    padding: 1rem 1rem .75rem;
+    border-bottom: 1px solid var(--islide-line);
+}
+
+.islide-groupaward-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.islide-groupaward-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.islide-groupaward-meta {
+    margin: .25rem 0 0;
+    color: var(--islide-muted);
+    font-size: .9rem;
+}
+
+.islide-groupaward-list {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    margin: 0;
+    padding: .5rem 1rem .5rem 2.6rem;
+}
+
+.islide-groupaward-name {
+    padding: .3rem 0;
+    border-bottom: 1px solid var(--islide-line);
+    overflow-wrap: anywhere;
+}
+
+.islide-groupaward-name:last-child {
+    border-bottom: 0;
+}
+
+.islide-groupaward-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .75rem 1rem 1rem;
+}
+
+.islide-groupaward-list:not([hidden]) + .islide-groupaward-foot {
+    border-top: 1px solid var(--islide-line);
+}
+
+.islide-groupaward-foot .btn {
+    flex: 1 1 auto;
+}
+
+.islide-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.islide-stepper-label {
+    color: var(--islide-muted);
+    font-size: .9rem;
+}
+
+.islide-stepper-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid var(--islide-line);
+    border-radius: 50%;
+    background: var(--islide-canvas);
+    color: var(--islide-ink);
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.islide-stepper-btn:hover:not(:disabled) {
+    border-color: var(--islide-accent);
+}
+
+.islide-stepper-btn:disabled {
+    opacity: .4;
+    cursor: default;
+}
+
+.islide-stepper-value {
+    min-width: 2ch;
+    text-align: center;
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}

@@ -93,6 +93,70 @@ class text_util {
     }
 
     /**
+     * Fold a name for searching: lower case, no accents, single spaces.
+     *
+     * A lecturer typing a name to hand out a star types "nguyen", not
+     * "Nguyễn", and should still find the student. Every Vietnamese diacritic
+     * decomposes into a base letter plus combining marks in U+0300..U+036F, so
+     * dropping that range is the whole job, except for "đ", which is a letter
+     * of its own rather than a "d" with a mark on it.
+     *
+     * The presenter's JavaScript folds with exactly the same rules, so a name
+     * the board finds locally is the same name the server finds.
+     *
+     * @param string $text
+     * @return string
+     */
+    public static function search_fold(string $text): string {
+        $text = self::strip_invisible($text);
+        if (class_exists('\Normalizer')) {
+            $text = (string)\Normalizer::normalize($text, \Normalizer::FORM_D);
+        }
+        $text = preg_replace('/[\x{0300}-\x{036F}]/u', '', $text);
+        $text = str_replace(['đ', 'Đ'], 'd', (string)$text);
+        $text = \core_text::strtolower($text);
+        $text = preg_replace('/[\p{Z}\s]+/u', ' ', $text);
+
+        return trim((string)$text);
+    }
+
+    /**
+     * Whether every word of a search starts some word of a name.
+     *
+     * Word by word and in any order, because a Vietnamese name is written
+     * family name first while a lecturer calls a student by the given name:
+     * "an nguyen" has to find "Nguyễn Văn An". The start of a word rather than
+     * anywhere in it, because once accents are gone "an" is inside "Trần",
+     * "Khánh" and "Hoàng", and a search for An would list half the class.
+     *
+     * @param string $name
+     * @param string $query as typed
+     * @return bool false for an empty query
+     */
+    public static function name_matches(string $name, string $query): bool {
+        $query = self::search_fold($query);
+        if ($query === '') {
+            return false;
+        }
+
+        $namewords = explode(' ', self::search_fold($name));
+        foreach (explode(' ', $query) as $word) {
+            $found = false;
+            foreach ($namewords as $nameword) {
+                if (strncmp($nameword, $word, strlen($word)) === 0) {
+                    $found = true;
+                    break;
+                }
+            }
+            if (!$found) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Decide whether a submitted string matches any accepted answer.
      *
      * @param string $submitted raw user input

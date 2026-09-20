@@ -166,13 +166,47 @@ define([
                 '<span class="islide-bar-track">' +
                     '<span class="islide-bar-fill" style="width:' + Number(choice.percent) + '%"></span>' +
                 '</span>' +
-                '<span class="islide-bar-count">' + esc(choice.count) +
-                    ' <small>' + Number(choice.percent) + '%</small></span>' +
+                votersCount(choice, strings, options,
+                    esc(choice.count) + ' <small>' + Number(choice.percent) + '%</small>',
+                    'islide-bar-count') +
                 '</div>';
         });
 
         html += '</div>';
         container.innerHTML = html;
+    };
+
+    /**
+     * Whether an answer can be opened to see who gave it.
+     *
+     * Only on the presenter's screen, which is the only one the server sends
+     * names to, and only for an answer somebody actually gave.
+     *
+     * @param {Object} entry a choice or a blank entry
+     * @param {Object} options
+     * @return {Boolean}
+     */
+    var canListVoters = function(entry, options) {
+        return !!(options.voters && entry.key && entry.count > 0);
+    };
+
+    /**
+     * The count at the end of a vote bar, as a button when it opens a list.
+     *
+     * @param {Object} choice
+     * @param {Object} strings
+     * @param {Object} options
+     * @param {String} inner markup, already escaped
+     * @param {String} className
+     * @return {String}
+     */
+    var votersCount = function(choice, strings, options, inner, className) {
+        if (!canListVoters(choice, options)) {
+            return '<span class="' + className + '">' + inner + '</span>';
+        }
+        return '<button type="button" class="' + className + ' islide-voters-btn islide-bar-count-voters"' +
+            ' data-voters-key="' + esc(choice.key) + '" title="' + esc(strings.showvoters) + '">' +
+            '<span class="islide-voters-icon" aria-hidden="true">&#128101;</span>' + inner + '</button>';
     };
 
     /**
@@ -214,10 +248,19 @@ define([
 
             blank.entries.forEach(function(entry) {
                 var tone = entry.iscorrect ? ' islide-chip-correct' : '';
-                html += '<li class="islide-chip' + tone + '">' +
-                    '<span class="islide-chip-text">' + esc(entry.text) + '</span>' +
-                    '<span class="islide-chip-count">' + esc(entry.count) + '</span>' +
-                    '</li>';
+                var inner = '<span class="islide-chip-text">' + esc(entry.text) + '</span>' +
+                    '<span class="islide-chip-count">' + esc(entry.count) + '</span>';
+
+                if (canListVoters(entry, options)) {
+                    // The whole chip opens the list: on a projector driven from
+                    // a tablet the count alone is too small a target.
+                    html += '<li class="islide-chip islide-chip-voters' + tone + '">' +
+                        '<button type="button" class="islide-voters-btn" data-voters-key="' +
+                            esc(entry.key) + '" title="' + esc(strings.showvoters) + '">' +
+                        inner + '</button></li>';
+                } else {
+                    html += '<li class="islide-chip' + tone + '">' + inner + '</li>';
+                }
             });
 
             html += '</ul></div>';
@@ -392,7 +435,8 @@ define([
      * @param {Element} container
      * @param {Array} board
      * @param {Object} strings
-     * @param {Object} [options] highlightUserid, compact, award
+     * @param {Object} [options] highlightUserid, compact, award, and emptyText to say
+     *     something other than "nobody has joined" when the board is empty
      * @return {void}
      */
     var leaderboard = function(container, board, strings, options) {
@@ -417,7 +461,7 @@ define([
     var drawLeaderboard = function(container, board, strings, options) {
         if (!board || !board.length) {
             container.innerHTML = '';
-            container.appendChild(emptyNote(strings.noparticipantsyet));
+            container.appendChild(emptyNote(options.emptyText || strings.noparticipantsyet));
             return;
         }
 
