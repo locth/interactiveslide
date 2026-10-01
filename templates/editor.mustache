@@ -178,6 +178,36 @@
                         <small class="islide-field-hint">{{#str}}videourl_help, mod_interactiveslide{{/str}}</small>
                     </label>
 
+                    <fieldset class="islide-media" data-region="mediafields">
+                        <legend class="islide-field-label">{{#str}}questionmedia, mod_interactiveslide{{/str}}</legend>
+
+                        <div class="islide-media-image">
+                            <img class="islide-media-thumb" data-region="questionimagethumb" src="" alt="" hidden>
+
+                            <div class="islide-media-controls">
+                                <label class="islide-import-label islide-media-pick">
+                                    <span data-region="questionimagelabel">
+                                        {{#str}}choosequestionimage, mod_interactiveslide{{/str}}
+                                    </span>
+                                    <input type="file" accept="image/png,image/jpeg,image/gif,image/webp"
+                                           data-region="questionimageinput" class="islide-file-input">
+                                </label>
+                                <button type="button" class="islide-linkbtn" data-action="removequestionimage" hidden>
+                                    {{#str}}removequestionimage, mod_interactiveslide{{/str}}
+                                </button>
+                                <small class="islide-field-hint">{{#str}}questionimage_help, mod_interactiveslide{{/str}}</small>
+                                <small class="islide-field-hint" data-region="questionimagestatus" role="status"></small>
+                            </div>
+                        </div>
+
+                        <label class="islide-field" data-region="mediavideofield">
+                            <span>{{#str}}mediavideourl, mod_interactiveslide{{/str}}</span>
+                            <input type="url" data-field="mediavideourl" maxlength="1333"
+                                   placeholder="{{#str}}videourlplaceholder, mod_interactiveslide{{/str}}">
+                            <small class="islide-field-hint">{{#str}}mediavideourl_help, mod_interactiveslide{{/str}}</small>
+                        </label>
+                    </fieldset>
+
                     <div class="islide-field-group" data-region="participationfields" hidden>
                         <label class="islide-field islide-field-third" data-region="maxentriesfield">
                             <span>{{#str}}maxentries, mod_interactiveslide{{/str}}</span>

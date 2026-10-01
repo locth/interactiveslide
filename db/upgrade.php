@@ -89,10 +89,40 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090801, 'interactiveslide');
     }
 
-    if ($oldversion < 2026091400) {
+    if ($oldversion < 2026092100) {
+        // A picture and a video can now be hung on any question. The picture is
+        // a file in the questionimage area, named by this column; the video is
+        // a link, resolved against the provider list every time it is drawn.
+        $table = new xmldb_table('interactiveslide_interaction');
+
+        $fields = [
+            new xmldb_field('mediaimage', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'videourl'),
+            new xmldb_field('mediaimagewidth', XMLDB_TYPE_INTEGER, '10', null,
+                XMLDB_NOTNULL, null, '0', 'mediaimage'),
+            new xmldb_field('mediaimageheight', XMLDB_TYPE_INTEGER, '10', null,
+                XMLDB_NOTNULL, null, '0', 'mediaimagewidth'),
+            new xmldb_field('mediavideourl', XMLDB_TYPE_CHAR, '1333', null, null, null, null, 'mediaimageheight'),
+        ];
+
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026092100, 'interactiveslide');
+    }
+
+    if ($oldversion < 2026100100) {
         // Guests of the course take part through a link that belongs to one
         // session. Off unless the teacher turns it on, and the site's own switch
         // has to be on first.
+        //
+        // This step sits after the media one although the feature came first:
+        // the two were built on separate branches, and a site that installed
+        // 2.0.5 has a saved version later than the number this step used to
+        // carry, so at its old number it would never have run there. Every
+        // statement below is guarded, so arriving from either branch is safe.
         $table = new xmldb_table('interactiveslide');
         $field = new xmldb_field('allowguests', XMLDB_TYPE_INTEGER, '1', null,
             XMLDB_NOTNULL, null, '0', 'anonymousresults');
@@ -123,7 +153,7 @@ function xmldb_interactiveslide_upgrade($oldversion) {
             $dbman->create_table($table);
         }
 
-        upgrade_mod_savepoint(true, 2026091400, 'interactiveslide');
+        upgrade_mod_savepoint(true, 2026100100, 'interactiveslide');
     }
 
     return true;

@@ -73,6 +73,9 @@ class deck_archive {
     /** @var string The only directory an image may live in. */
     public const IMAGE_DIR = 'images/';
 
+    /** @var string Where the pictures hung on questions sit inside the archive. */
+    public const QUESTION_IMAGE_DIR = 'questionimages/';
+
     /**
      * The most slides a manifest may claim, whatever the site allows.
      *
@@ -116,8 +119,8 @@ class deck_archive {
      * @param string $extension without the dot
      * @return string
      */
-    public static function image_name(int $index, string $extension): string {
-        return self::IMAGE_DIR . sprintf('%04d', $index + 1) . '.' . $extension;
+    public static function image_name(int $index, string $extension, string $directory = self::IMAGE_DIR): string {
+        return $directory . sprintf('%04d', $index + 1) . '.' . $extension;
     }
 
     /**
@@ -131,18 +134,22 @@ class deck_archive {
      * @param string $name as it appears in the manifest
      * @return bool
      */
-    public static function is_valid_image_name(string $name): bool {
+    public static function is_valid_image_name(string $name, string $directory = self::IMAGE_DIR): bool {
         if ($name === '' || strpos($name, "\0") !== false) {
             return false;
         }
 
-        if (!preg_match('~^images/\d{4}\.(png|jpg|jpeg|gif|webp)$~', $name)) {
+        if (!in_array($directory, [self::IMAGE_DIR, self::QUESTION_IMAGE_DIR], true)) {
+            return false;
+        }
+
+        if (!preg_match('~^' . preg_quote($directory, '~') . '\d{4}\.(png|jpg|jpeg|gif|webp)$~', $name)) {
             return false;
         }
 
         // Nothing may have survived the pattern that changes under basename(),
         // but stating it means the pattern is not the only thing standing there.
-        return basename($name) === substr($name, strlen(self::IMAGE_DIR));
+        return basename($name) === substr($name, strlen($directory));
     }
 
     /**
@@ -245,6 +252,14 @@ class deck_archive {
             // The raw URL, not the resolved embed: the editor shows the teacher
             // back what they typed, and a file has to carry the same.
             'videourl' => (string)($interaction->videourl ?? ''),
+            // The picture and the video that go with the question. In a deck
+            // file `mediaimage` is rewritten into a path inside the archive by
+            // build_manifest(); here it is the stored file name, which is what
+            // the editor sends back and what save_from_payload() expects.
+            'mediaimage' => (string)($interaction->mediaimage ?? ''),
+            'mediaimagewidth' => (int)($interaction->mediaimagewidth ?? 0),
+            'mediaimageheight' => (int)($interaction->mediaimageheight ?? 0),
+            'mediavideourl' => (string)($interaction->mediavideourl ?? ''),
             'allowretry' => (int)$interaction->allowretry,
             'options' => $options,
             'blanks' => $blanks,
@@ -290,6 +305,12 @@ class deck_archive {
             'maxwordlength' => (int)($raw['maxwordlength'] ?? 30),
             'casesensitive' => (int)!empty($raw['casesensitive']),
             'videourl' => (string)($raw['videourl'] ?? ''),
+            // Never the name from the file: the picture is stored first, under a
+            // name this site chooses, and only then does it reach a payload.
+            'mediaimage' => '',
+            'mediaimagefile' => (string)($raw['mediaimage'] ?? ''),
+            'mediaimagesha1' => (string)($raw['mediaimagesha1'] ?? ''),
+            'mediavideourl' => (string)($raw['mediavideourl'] ?? ''),
             'allowretry' => (int)!empty($raw['allowretry']),
             'options' => self::options_from_manifest($raw['options'] ?? []),
             'blanks' => [],
@@ -479,6 +500,30 @@ class deck_archive {
             if ($slide->interaction) {
                 $interaction = self::interaction_to_array(
                     interaction_manager::attach_children($slide->interaction));
+
+                // The question's own picture travels beside the slide pictures,
+                // under a name made from the slide's position rather than from
+                // anything the source site called it.
+                $questionimage = null;
+                if (!empty($slide->interaction->mediaimage)) {
+                    $questionimage = $fs->get_file($context->id, 'mod_interactiveslide',
+                        interaction_manager::FILEAREA_QUESTIONIMAGE, $slide->id, '/',
+                        (string)$slide->interaction->mediaimage);
+                }
+
+                if ($questionimage && !$questionimage->is_directory()) {
+                    $extension = strtolower(pathinfo((string)$slide->interaction->mediaimage,
+                        PATHINFO_EXTENSION));
+                    if (!in_array($extension, self::image_types(), true)) {
+                        $extension = 'png';
+                    }
+                    $name = self::image_name($index, $extension, self::QUESTION_IMAGE_DIR);
+                    $files[$name] = $questionimage;
+                    $interaction['mediaimage'] = $name;
+                    $interaction['mediaimagesha1'] = (string)$questionimage->get_contenthash();
+                } else {
+                    $interaction['mediaimage'] = '';
+                }
             }
 
             $entries[] = [

@@ -141,7 +141,7 @@ class state {
 
             $interaction = interaction_manager::get_interaction($round->interactionid);
             if ($interaction) {
-                $payload = self::add_round($payload, $round, $interaction, $userid, $ispresenter);
+                $payload = self::add_round($payload, $context, $round, $interaction, $userid, $ispresenter);
             }
         }
 
@@ -154,14 +154,15 @@ class state {
      * Add everything that describes the round in progress.
      *
      * @param array $payload
+     * @param context_module $context
      * @param stdClass $round
      * @param stdClass $interaction
      * @param int $userid
      * @param bool $ispresenter
      * @return array
      */
-    private static function add_round(array $payload, stdClass $round, stdClass $interaction,
-            int $userid, bool $ispresenter): array {
+    private static function add_round(array $payload, context_module $context, stdClass $round,
+            stdClass $interaction, int $userid, bool $ispresenter): array {
 
         $revealed = (bool)$round->revealed;
         $closed = $round->status === session_manager::ROUND_CLOSED;
@@ -181,6 +182,8 @@ class state {
         // presenter included: their screen is the projector the room is reading,
         // so an early answer there is an early answer for the whole class.
         $payload['interaction'] = interaction_manager::export_for_student($interaction, $revealed);
+        // The picture reaches both screens; the video only the presenter's.
+        $payload['interaction']['media'] = interaction_manager::export_media($context, $interaction, $ispresenter);
 
         if ($ispresenter) {
             // Fill in the blanks puts other students' typed answers on the

@@ -42,7 +42,7 @@ define([
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
         'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
-        'guestbadge', 'errorguestname'
+        'autosubmitting', 'guestbadge', 'errorguestname'
     ];
 
     /**
@@ -89,10 +89,15 @@ define([
             currentSlideId: 0,
             expiredRound: 0,
             submitting: false,
+            // What this page last sent, so the timer knows whether the form
+            // holds anything the server has not been told about.
+            submitted: {roundid: 0, payload: ''},
             joining: false,
             guestFocused: false,
             autoenter: !!config.autoenter
         };
+
+        view.imageViewer = Util.imageViewer(root);
 
         view.poller = Poller.create({
             cmid: config.cmid,
@@ -104,6 +109,14 @@ define([
                 setConnection(view, status);
             }
         });
+
+        var questionimage = Util.region(root, 'questionimage');
+        if (questionimage) {
+            // A diagram on a phone is worth very little at answer-panel size.
+            questionimage.addEventListener('click', function() {
+                view.imageViewer.open(questionimage.getAttribute('src'));
+            });
+        }
 
         var submitButton = Util.actions(root, 'submit')[0];
         if (submitButton) {
@@ -487,6 +500,11 @@ define([
                 || state.interaction.qtype === 'dropdown';
         }
 
+        // The question's picture, if it has one. The video that may go with the
+        // question never reaches this screen: the server leaves it out of the
+        // state document a student receives, so there is nothing here to hide.
+        showQuestionImage(view, state);
+
         var answered = !!(state.myresponse && state.myresponse.submitted);
         var canAnswer = state.round.status === 'open' && (!answered || state.myresponse.canchange);
 
@@ -534,6 +552,41 @@ define([
             Util.toggle(result, true);
         } else {
             Util.toggle(result, false);
+        }
+    };
+
+    /**
+     * Show the picture that goes with the question, or put the box away.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var showQuestionImage = function(view, state) {
+        var box = Util.region(view.root, 'questionmedia');
+        var image = Util.region(view.root, 'questionimage');
+        if (!box || !image) {
+            return;
+        }
+
+        var media = state.interaction.media || {};
+        var picture = media.image || null;
+
+        if (picture && picture.url) {
+            if (image.getAttribute('src') !== picture.url) {
+                image.setAttribute('src', picture.url);
+            }
+            // Held open at the picture's own shape while it loads, so the answer
+            // buttons do not jump under a finger that is already reaching.
+            if (picture.width > 0 && picture.height > 0) {
+                box.style.setProperty('--islide-media-aspect', picture.width + ' / ' + picture.height);
+            } else {
+                box.style.removeProperty('--islide-media-aspect');
+            }
+            Util.toggle(box, true);
+        } else {
+            image.removeAttribute('src');
+            Util.toggle(box, false);
         }
     };
 
@@ -870,7 +923,7 @@ define([
      * @param {Object} view
      * @return {void}
      */
-    var submit = function(view) {
+    var submit = function(view, auto) {
         var state = view.state;
         if (!state || !state.round || !state.interaction || view.submitting) {
             return;
@@ -887,6 +940,13 @@ define([
             return;
         }
 
+        var encoded = JSON.stringify(payload);
+
+        if (auto && status) {
+            status.textContent = view.strings.autosubmitting;
+            status.dataset.tone = 'info';
+        }
+
         view.submitting = true;
         var button = Util.actions(view.root, 'submit')[0];
         if (button) {
@@ -895,6 +955,7 @@ define([
 
         Api.submitResponse(view.cmid, state.round.id, payload).then(function(response) {
             view.submitting = false;
+            view.submitted = {roundid: state.round.id, payload: encoded};
             if (button) {
                 button.disabled = false;
             }
@@ -912,6 +973,48 @@ define([
             // The round may have closed under us; a refresh tells us which.
             view.poller.refresh();
         });
+    };
+
+    /**
+     * Send what is in the form when the clock runs out.
+     *
+     * A student who typed an answer and did not press the button still meant to
+     * answer, so the device sends it for them. The server allows a few seconds
+     * past the deadline for exactly these, and pays no speed bonus on them.
+     *
+     * An answer already with the server is left alone: resending it would
+     * rewrite the time it was given, and on a question that allows changes it
+     * would take back the speed bonus it earned. The exception is a form this
+     * page has since changed, which is the student's newer answer.
+     *
+     * @param {Object} view
+     * @return {Boolean} true when something was sent
+     */
+    var autoSubmit = function(view) {
+        var state = view.state;
+        if (!state || !state.round || !state.interaction || view.submitting) {
+            return false;
+        }
+        if (state.round.status !== 'open') {
+            return false;
+        }
+
+        var payload = collect(view, state);
+        if (!payload) {
+            return false;
+        }
+
+        var answered = !!(state.myresponse && state.myresponse.submitted);
+        var changed = view.submitted.roundid === state.round.id
+            && view.submitted.payload !== JSON.stringify(payload);
+
+        if (answered && !changed) {
+            return false;
+        }
+
+        submit(view, true);
+
+        return true;
     };
 
     /**
@@ -940,8 +1043,10 @@ define([
 
             stopTimer(view);
 
+            var sent = autoSubmit(view);
+
             var status = Util.region(view.root, 'answerstatus');
-            if (status && !(view.state.myresponse && view.state.myresponse.submitted)) {
+            if (!sent && status && !(view.state.myresponse && view.state.myresponse.submitted)) {
                 status.textContent = view.strings.timesup;
                 status.dataset.tone = 'error';
             }

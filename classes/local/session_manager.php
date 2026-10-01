@@ -126,6 +126,11 @@ class session_manager {
             'timeend' => time(),
         ]);
 
+        // Every round is closed now, so every answer counts. The totals are the
+        // gradebook's input, so they are rebuilt before anyone reads them.
+        self::recalculate_participants($sessionid,
+            $DB->get_fieldset_select('interactiveslide_participant', 'userid', 'sessionid = ?', [$sessionid]));
+
         self::bump($sessionid);
     }
 
@@ -271,6 +276,9 @@ class session_manager {
             $round->timelimit = (int)$interaction->timerseconds;
             $round->statechanged = (int)$round->statechanged + 1;
             $DB->update_record('interactiveslide_round', $round);
+            // Running this question again puts its answers back in play, so the
+            // stars it had already paid come off the totals until it closes.
+            self::recalculate_round_participants((int)$session->id, (int)$round->id);
         } else {
             $round = new stdClass();
             $round->sessionid = (int)$session->id;
@@ -313,7 +321,27 @@ class session_manager {
             'statechanged' => (int)$round->statechanged + 1,
         ]);
 
+        // This is where the stars of this question are paid out: a round only
+        // counts towards a student's total once it has stopped taking answers.
+        self::recalculate_round_participants((int)$round->sessionid, (int)$round->id);
+
         self::bump((int)$round->sessionid);
+    }
+
+    /**
+     * Rebuild the totals of everyone who answered one round.
+     *
+     * @param int $sessionid
+     * @param int $roundid
+     * @return void
+     */
+    public static function recalculate_round_participants(int $sessionid, int $roundid): void {
+        global $DB;
+
+        $userids = $DB->get_fieldset_select('interactiveslide_response', 'DISTINCT userid',
+            'roundid = ?', [$roundid]);
+
+        self::recalculate_participants($sessionid, $userids);
     }
 
     /**
@@ -336,8 +364,37 @@ class session_manager {
 
         self::close_round($round);
         $round->status = self::ROUND_CLOSED;
+        $round->timeclose = time();
 
         return true;
+    }
+
+    /** @var int How long after the timer runs out a device may still deliver its answer. */
+    public const GRACE_SECONDS = 5;
+
+    /**
+     * Whether an answer arriving now is one the timer caught in flight.
+     *
+     * When the clock reaches zero every phone in the room sends what it has,
+     * and some of those requests land after the round has already been closed
+     * by whichever poll noticed first. Refusing them would punish the slowest
+     * network in the hall for being slow, so a few seconds are allowed - but
+     * only for a round that ran out of time. A round the teacher stopped by
+     * hand is stopped, and nothing else gets in.
+     *
+     * @param stdClass $round
+     * @return bool
+     */
+    public static function in_grace_window(stdClass $round): bool {
+        $limit = (int)$round->timelimit;
+        if ($limit <= 0) {
+            return false;
+        }
+
+        $deadline = (int)$round->timeopen + $limit;
+        $closedbytimer = (int)$round->timeclose >= $deadline;
+
+        return $closedbytimer && time() <= $deadline + self::GRACE_SECONDS;
     }
 
     /**
@@ -421,9 +478,7 @@ class session_manager {
             'statechanged' => (int)$round->statechanged + 1,
         ]);
 
-        foreach ($userids as $userid) {
-            self::recalculate_participant((int)$round->sessionid, (int)$userid);
-        }
+        self::recalculate_participants((int)$round->sessionid, $userids);
 
         $transaction->allow_commit();
 
@@ -514,74 +569,118 @@ class session_manager {
     }
 
     /**
-     * Rebuild a participant's totals from their stored responses.
-     *
-     * Recomputing is cheap at classroom scale and keeps the leaderboard correct
-     * after a reset, a regrade or an edited answer key.
+     * Rebuild one participant's totals from their stored responses.
      *
      * @param int $sessionid
      * @param int $userid
      * @return void
      */
     public static function recalculate_participant(int $sessionid, int $userid): void {
-        global $DB;
-
-        $totals = $DB->get_record_sql(
-            'SELECT COALESCE(SUM(stars + bonusstars), 0) AS totalstars,
-                    COALESCE(SUM(iscorrect), 0) AS correctcount,
-                    COUNT(id) AS responsecount
-               FROM {interactiveslide_response}
-              WHERE sessionid = :sessionid AND userid = :userid',
-            ['sessionid' => $sessionid, 'userid' => $userid]
-        );
-
-        $awarded = (int)$DB->get_field_sql(
-            'SELECT COALESCE(SUM(stars), 0) FROM {interactiveslide_award} WHERE sessionid = ? AND userid = ?',
-            [$sessionid, $userid]
-        );
-
-        $participant = $DB->get_record('interactiveslide_participant',
-            ['sessionid' => $sessionid, 'userid' => $userid]);
-        if (!$participant) {
-            return;
-        }
-
-        $streak = self::calculate_streak($sessionid, $userid);
-
-        $DB->update_record('interactiveslide_participant', (object)[
-            'id' => $participant->id,
-            // totalstars is what the leaderboard ranks on, so everything a
-            // student has earned lives inside it; the other columns keep each
-            // source visible on its own for the reports.
-            'totalstars' => (int)$totals->totalstars + $awarded + (int)$participant->attendancestars,
-            'bonusstars' => $awarded,
-            'correctcount' => (int)$totals->correctcount,
-            'responsecount' => (int)$totals->responsecount,
-            'streak' => $streak['current'],
-            'beststreak' => $streak['best'],
-        ]);
+        self::recalculate_participants($sessionid, [$userid]);
     }
 
     /**
-     * Current and best run of consecutive correct answers in a session.
+     * Rebuild the totals of several participants at once.
+     *
+     * Recomputing is cheap at classroom scale and keeps the leaderboard correct
+     * after a reset, a regrade or an edited answer key. Closing a question
+     * recalculates everyone who answered it, so this runs over a whole class in
+     * one request: it costs four queries plus one write per person, rather than
+     * four queries per person.
+     *
+     * Only rounds that have stopped taking answers count. A star that landed the
+     * moment an answer was sent told the student they had got it right, and with
+     * answer changing switched on that is all it takes to find the right answer
+     * by trying each one and watching the header.
      *
      * @param int $sessionid
-     * @param int $userid
-     * @return array{current: int, best: int}
+     * @param int[] $userids
+     * @return void
      */
-    private static function calculate_streak(int $sessionid, int $userid): array {
+    public static function recalculate_participants(int $sessionid, array $userids): void {
         global $DB;
 
-        $flags = $DB->get_fieldset_sql(
-            'SELECT iscorrect
-               FROM {interactiveslide_response}
-              WHERE sessionid = :sessionid AND userid = :userid
-           ORDER BY timecreated ASC, id ASC',
-            ['sessionid' => $sessionid, 'userid' => $userid]
+        $userids = array_values(array_unique(array_map('intval', $userids)));
+        if (!$userids) {
+            return;
+        }
+
+        [$insql, $params] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED, 'u');
+        $params['sessionid'] = $sessionid;
+
+        $totals = $DB->get_records_sql(
+            "SELECT r.userid,
+                    COALESCE(SUM(r.stars + r.bonusstars), 0) AS totalstars,
+                    COALESCE(SUM(r.iscorrect), 0) AS correctcount,
+                    COUNT(r.id) AS responsecount
+               FROM {interactiveslide_response} r
+               JOIN {interactiveslide_round} rd ON rd.id = r.roundid
+              WHERE r.sessionid = :sessionid AND r.userid $insql AND rd.status = :closed
+           GROUP BY r.userid",
+            $params + ['closed' => self::ROUND_CLOSED]
         );
 
+        $awards = $DB->get_records_sql(
+            "SELECT userid, COALESCE(SUM(stars), 0) AS awarded
+               FROM {interactiveslide_award}
+              WHERE sessionid = :sessionid AND userid $insql
+           GROUP BY userid",
+            $params
+        );
+
+        // One row per answer, in the order they were given, for the streaks.
+        $flags = $DB->get_records_sql(
+            "SELECT r.id, r.userid, r.iscorrect
+               FROM {interactiveslide_response} r
+               JOIN {interactiveslide_round} rd ON rd.id = r.roundid
+              WHERE r.sessionid = :sessionid AND r.userid $insql AND rd.status = :closed
+           ORDER BY r.userid ASC, r.timecreated ASC, r.id ASC",
+            $params + ['closed' => self::ROUND_CLOSED]
+        );
+
+        $sequences = [];
+        foreach ($flags as $row) {
+            $sequences[(int)$row->userid][] = (int)$row->iscorrect;
+        }
+
+        $participants = $DB->get_records_sql(
+            "SELECT id, userid, attendancestars
+               FROM {interactiveslide_participant}
+              WHERE sessionid = :sessionid AND userid $insql",
+            $params
+        );
+
+        foreach ($participants as $participant) {
+            $userid = (int)$participant->userid;
+            $total = $totals[$userid] ?? null;
+            $awarded = isset($awards[$userid]) ? (int)$awards[$userid]->awarded : 0;
+            $streak = self::streak_from_flags($sequences[$userid] ?? []);
+
+            $DB->update_record('interactiveslide_participant', (object)[
+                'id' => (int)$participant->id,
+                // totalstars is what the leaderboard ranks on, so everything a
+                // student has earned lives inside it; the other columns keep each
+                // source visible on its own for the reports.
+                'totalstars' => (int)($total->totalstars ?? 0) + $awarded + (int)$participant->attendancestars,
+                'bonusstars' => $awarded,
+                'correctcount' => (int)($total->correctcount ?? 0),
+                'responsecount' => (int)($total->responsecount ?? 0),
+                'streak' => $streak['current'],
+                'beststreak' => $streak['best'],
+            ]);
+        }
+    }
+
+    /**
+     * Current and best run of consecutive correct answers.
+     *
+     * @param int[] $flags 1 for a correct answer, in the order they were given
+     * @return array{current: int, best: int}
+     */
+    public static function streak_from_flags(array $flags): array {
         $current = 0;
         $best = 0;
+
         foreach ($flags as $flag) {
             if ((int)$flag === 1) {
                 $current++;
@@ -625,6 +724,94 @@ class session_manager {
 
         self::recalculate_participant((int)$session->id, $userid);
         self::bump((int)$session->id);
+    }
+
+    /** @var int The most stars one group award may give each person. */
+    public const GROUP_STARS_MAX = 100;
+
+    /**
+     * Who a group award actually reaches.
+     *
+     * Only people already in this session, and only those still allowed to
+     * take part. The list the browser sends is what the teacher was looking at,
+     * so it is treated as a request: an id that is not a participant, or that
+     * appears twice, earns nothing extra.
+     *
+     * A guest has no enrolment to look up, so being on this session's board is
+     * the whole of their claim - the same rule a single star follows. Without
+     * that, "everyone" would visibly skip the guests sitting in the room while
+     * their names stayed on the projector.
+     *
+     * @param int[] $participants user ids with a participant row in the session
+     * @param int[] $requested user ids the teacher picked; ignored for everyone
+     * @param bool $everyone the whole class rather than a picked list
+     * @param int[] $eligible user ids enrolled with the capability to submit
+     * @return int[] ascending, unique
+     */
+    public static function group_recipients(array $participants, array $requested, bool $everyone,
+            array $eligible): array {
+        $inclass = array_flip(array_map('intval', $participants));
+        $eligible = array_flip(array_map('intval', $eligible));
+
+        $wanted = $everyone ? array_keys($inclass) : array_map('intval', $requested);
+
+        $recipients = [];
+        foreach ($wanted as $userid) {
+            if ($userid === 0 || !isset($inclass[$userid])) {
+                continue;
+            }
+            if ($userid > 0 && !isset($eligible[$userid])) {
+                continue;
+            }
+            $recipients[$userid] = $userid;
+        }
+        ksort($recipients);
+
+        return array_values($recipients);
+    }
+
+    /**
+     * Give the same bonus to several people at once.
+     *
+     * One transaction and one revision bump, so the room's phones see the whole
+     * class change together rather than one row per poll, and a failure halfway
+     * through gives nobody anything.
+     *
+     * @param stdClass $session
+     * @param int[] $userids recipients, already checked by {@see self::group_recipients()}
+     * @param int $stars 1..GROUP_STARS_MAX
+     * @param string $reason
+     * @param int $awardedby
+     * @return int how many people received stars
+     */
+    public static function award_stars_many(stdClass $session, array $userids, int $stars, string $reason,
+            int $awardedby): int {
+        global $DB;
+
+        if (!$userids || $stars < 1 || $stars > self::GROUP_STARS_MAX) {
+            return 0;
+        }
+
+        $reason = \core_text::substr(clean_param($reason, PARAM_TEXT), 0, 255);
+        $now = time();
+
+        $transaction = $DB->start_delegated_transaction();
+        foreach ($userids as $userid) {
+            $DB->insert_record('interactiveslide_award', (object)[
+                'sessionid' => (int)$session->id,
+                'userid' => (int)$userid,
+                'stars' => $stars,
+                'reason' => $reason,
+                'awardedby' => $awardedby,
+                'timecreated' => $now,
+            ]);
+        }
+        self::recalculate_participants((int)$session->id, $userids);
+        $transaction->allow_commit();
+
+        self::bump((int)$session->id);
+
+        return count($userids);
     }
 
     /**

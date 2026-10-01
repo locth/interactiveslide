@@ -81,7 +81,7 @@ class get_deck extends external_api {
 
             if ($slide->interaction) {
                 $interaction = interaction_manager::attach_children($slide->interaction);
-                $entry['interaction'] = self::export_interaction($interaction);
+                $entry['interaction'] = self::export_interaction($context, $interaction);
                 $entry['locked'] = (int)interaction_manager::has_responses((int)$interaction->id);
             }
 
@@ -103,15 +103,21 @@ class get_deck extends external_api {
     /**
      * Shape an interaction for the editor, answer keys included.
      *
+     * @param \context_module $context
      * @param \stdClass $interaction
      * @return array
      */
-    private static function export_interaction(\stdClass $interaction): array {
+    private static function export_interaction(\context_module $context, \stdClass $interaction): array {
         // One serialiser for the whole plugin. The deck file and this payload
         // carry the same question, so they are written by the same function;
         // two of them would eventually disagree about some field nobody looks
         // at until a deck comes back wrong.
-        return \mod_interactiveslide\local\deck_archive::interaction_to_array($interaction, true);
+        $out = \mod_interactiveslide\local\deck_archive::interaction_to_array($interaction, true);
+        // The file name is what gets saved back; the URL is what the editor
+        // shows the teacher. Resolved here because only this end has a context.
+        $out['mediaimageurl'] = interaction_manager::question_image_url($context, $interaction);
+
+        return $out;
     }
 
     /**

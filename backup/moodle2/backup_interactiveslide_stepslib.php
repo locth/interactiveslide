@@ -57,7 +57,8 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $interaction = new backup_nested_element('interaction', ['id'], [
             'qtype', 'questiontext', 'hasanswer', 'difficulty', 'points', 'timerseconds',
             'autoclose', 'showliveresult', 'showleaderboard', 'allowmultiple', 'shuffleoptions',
-            'maxentries', 'maxwordlength', 'casesensitive', 'videourl', 'allowretry',
+            'maxentries', 'maxwordlength', 'casesensitive', 'videourl',
+            'mediaimage', 'mediaimagewidth', 'mediaimageheight', 'mediavideourl', 'allowretry',
             'timecreated', 'timemodified',
         ]);
 
@@ -187,6 +188,9 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $interactiveslide->annotate_files('mod_interactiveslide', 'intro', null);
         $interactiveslide->annotate_files('mod_interactiveslide', 'sourcepdf', null);
         $slide->annotate_files('mod_interactiveslide', 'slideimage', 'id');
+        // The picture hung on a question is stored against its slide, so it is
+        // annotated here rather than on the interaction element.
+        $slide->annotate_files('mod_interactiveslide', 'questionimage', 'id');
 
         return $this->prepare_activity_structure($interactiveslide);
     }

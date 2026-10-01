@@ -85,7 +85,15 @@ Built for **Moodle 5.0+**.
     gap deleted mid-edit removes a position only while nothing has been typed
     into it, so a stray keystroke cannot throw away a list of choices.
   - **Fill in the blanks** — several blanks on one slide, each with its own list
-    of accepted answers and its own star value.
+    of accepted answers and its own star value. Matching ignores case (unless
+    the blank asks for it), collapses runs of spaces, and forgives a full stop
+    at the end or quotes wrapped round the whole answer. It also folds the
+    punctuation a keyboard substitutes on its own: a phone types `’` where a
+    laptop types `'`, and `B’D’` from a phone matches an answer key of `B'D'`
+    typed on a laptop. Curly double quotes, primes and long dashes are folded
+    the same way. **Nothing else is removed** — `-5` keeps its sign, `<` is an
+    answer in its own right, and `B'D` does not match `B'D'`, because in a
+    digital logic class that last mark is the answer.
   - **Open ended** — a written answer, gathered into a wall of cards on the
     projector. No answer key, so everyone who writes something earns the
     participation stars; identical replies are badged with how often they came up.
@@ -101,16 +109,68 @@ Built for **Moodle 5.0+**.
     lecture. YouTube is embedded through `youtube-nocookie.com`: the room did not
     choose to be tracked by being in it.
 
+**A picture, and a clip for the room**
+: Any question can carry a picture and a video, whatever it asks.
+
+  The **picture is part of the question**, so it goes to both screens: the
+  projector and every student's phone. It is sent even when the site keeps slide
+  images off student devices, because that setting is a bandwidth rule about
+  scanned lecture pages, not about the thing being asked. The box is held open
+  at the picture's own shape while it loads, so the answer buttons do not jump
+  under a finger already reaching for them.
+
+  The **video plays on the presenter's screen only**. That is not a CSS
+  decision: the resolved URL is never put in the state document a student
+  receives, so there is nothing on the phone to reveal. A clip is something a
+  room watches together once; thirty phones playing it out of step, on the
+  hall's wifi, is a different and worse thing. Links go through the same closed
+  provider list the video question type uses, and are refused while the teacher
+  is still looking at the field.
+
+  Putting the overlay away empties the box rather than hiding it: a video in a
+  hidden panel goes on playing, and the room does not need a soundtrack from
+  something nobody can see. Pictures travel in deck exports beside the slide
+  images, under names made from the slide's position, and are re-checked byte by
+  byte on the way in.
+
+  The picture is capped on both screens so it cannot push the answers off the
+  bottom, which on a dense diagram means the room can see it but not read it.
+  **Tapping it puts it up whole**, over everything else; the button, the
+  backdrop, the picture itself and `Esc` all put it away again. On the
+  presenter that `Esc` stops there rather than also dismissing the overlay
+  underneath.
+
 **Scoring**
 : Difficulty presets are configured site-wide and default to Easy = 1,
   Medium = 2, Hard = 3 stars. Fill in the blanks scores per blank, so a slide can
   be worth the sum of its parts. An optional speed bonus pays extra stars for
   answering correctly with time to spare.
 
+  **Stars are paid when the question closes, not when the answer is sent.** An
+  answer that scored on arrival told the student it had scored: with answer
+  changing switched on, sending each option in turn and watching the header was
+  enough to find the right one. So a round contributes nothing to anybody's
+  total until it stops taking answers — by the timer, by **Stop collecting**, by
+  **Reveal answer**, or by the session ending — and closing it credits everyone
+  who answered in one pass. Running the same question again takes those stars
+  back off the board until it closes a second time. The answers themselves are
+  stored and marked as they arrive, as they always were; what changed is when
+  they are counted.
+
 **Timer**
 : Per question, in seconds. The countdown is drawn in the browser but **enforced
   on the server**: pausing the page buys no extra time, and the round closes on
   its own even if nobody is watching.
+
+  When the clock reaches zero, each phone sends whatever is in its form: a
+  student who typed an answer and did not press the button still meant to
+  answer. An answer already with the server is left alone, so a resend cannot
+  rewrite the time it was given or take back its speed bonus — unless the form
+  has been changed since, which is the student's newer answer. The whole room
+  sends at the same moment and some of those requests arrive after the round has
+  been closed, so the server accepts them for five seconds past the deadline.
+  Only a round that ran out of time has that window: one the teacher stopped by
+  hand is stopped.
 
 **Sessions**
 : Students see nothing until a teacher starts a session, and only ever see the
@@ -149,6 +209,29 @@ Built for **Moodle 5.0+**.
   nothing else. Sized like the rest of the overlay it fitted four, and the name —
   the only flexible column — collapsed to nothing between the picture and the
   count, leaving a row of medals with nobody on it.
+
+  A search box sits at the top of the board and stays there while the names
+  scroll. It ignores accents and letter case and takes the words in any order,
+  matching the start of each word: `an nguyen` finds *Nguyễn Văn An*, `duc`
+  finds *Đức*, and `an` does not drag in *Trần* or *Khánh*. While the whole
+  class fits on the board (it carries the top 100) the board filters itself;
+  in a bigger session the server searches every participant instead, so a
+  student ranked 150th is still found and is still shown as 150th.
+
+  **Stars for the class** next to the search gives everyone who has joined the
+  session — online or not — the same number of stars in one step. A small
+  panel asks how many before anything is written.
+
+  **Who gave an answer.** Once a multiple choice, dropdown or fill in the blank
+  result is on screen, the count at the end of each bar, and each typed-answer
+  chip, opens a panel listing everyone behind it, sorted by name, and it keeps
+  up as more answers come in. From there the same panel gives all of them
+  stars at once. It is for the question whose own answer key turned out to be
+  wrong: open the answer the class was right to give and credit everyone who
+  gave it. A group award adds stars, it never takes them away, is capped at
+  100 each, and reaches only people who are in the session and still allowed
+  to take part, whatever list the browser sends. It is logged per student
+  like any other award and shows up as one award row each in the reports.
 
   Presentation mode is drawn by the plugin itself rather than asked of the
   browser, because iPadOS does not give web pages the Fullscreen API at all — the
@@ -325,6 +408,12 @@ Guests are on the same leaderboard as students, marked **Guest**, and can be
 given stars. The presenter can take a guest off the board with ✕: their name,
 answers and stars go, and every tally drops them on the next poll.
 
+Everything the board does reaches them: searching finds a guest by the name they
+typed, stars for the whole class include the guests in the room, and opening an
+answer to credit everyone who gave it credits the guests among them. A guest has
+no enrolment to check, so what entitles them to a star is being on this session's
+board - the same rule whether the star is given to one person or to a class.
+
 **What happens to their data**
 
 - Guest stars never reach the gradebook, and a guest at the top of the board does
@@ -349,7 +438,7 @@ db/install.xml          10 tables: deck, slide, interaction, option, blank,
                         session, round, response, answer, participant, award
 classes/local/          the domain: session state machine, marking, aggregation,
                         leaderboard, grading, reporting
-classes/external/       13 web services, all AJAX
+classes/external/       15 web services, all AJAX
 amd/src/                poller, renderers, the three screens, the PDF importer
 templates/              static shells the JavaScript fills
 ```
@@ -396,10 +485,19 @@ parts and manual awards are all covered.
 - A guest is whoever holds that browser's Moodle session. Clearing cookies or
   switching browser mid-lecture makes a new guest, starting from zero stars.
 - Question text and choices are stored exactly as typed, so `<` and `>` survive
-  and every renderer escapes them. One narrow case is left: a fill-in-the-blank
-  whose accepted answer is *only* punctuation (`<` on its own) still matches
-  nothing, because answers are compared with the surrounding punctuation
-  trimmed. `0<x<1` is fine; a bare `<` should be a dropdown choice instead.
+  and every renderer escapes them. Answers are compared with only sentence
+  punctuation trimmed, so `<`, `-5` and `B'D'` are answers in their own right.
+  Answers stored before 2.0.5 were normalised with every punctuation mark
+  trimmed; that only affects how old rounds group identical answers in a
+  report, never what is scored now.
+- The answer panel of a fill in the blank lists the people behind each chip on
+  the board, and the board shows the twelve most common answers per blank. A
+  rare answer below those twelve has no chip, so it cannot be opened.
+- The send-at-time-up is done by the student's own device, so a phone that is
+  asleep, offline or on a page that was closed sends nothing. The five second
+  window after the deadline covers a slow network, not a closed browser.
+- Because stars are paid at the end of a question, the leaderboard does not move
+  while one is running. It jumps when the question closes.
 
 ## Licence
 

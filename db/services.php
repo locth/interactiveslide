@@ -74,6 +74,22 @@ $functions = [
         'capabilities' => 'mod/interactiveslide:awardstars',
     ],
 
+    'mod_interactiveslide_award_stars_group' => [
+        'classname'   => 'mod_interactiveslide\external\award_stars_group',
+        'description' => 'Give the whole class, or a picked group, the same bonus stars.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:awardstars',
+    ],
+
+    'mod_interactiveslide_search_leaderboard' => [
+        'classname'   => 'mod_interactiveslide\external\search_leaderboard',
+        'description' => 'Find participants of the running session by name.',
+        'type'        => 'read',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
+
     'mod_interactiveslide_submit_response' => [
         'classname'   => 'mod_interactiveslide\external\submit_response',
         'description' => 'Submit an answer to the round in progress.',

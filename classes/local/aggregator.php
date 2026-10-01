@@ -36,6 +36,13 @@ class aggregator {
     /** @var int How many open ended answers the wall carries at once. */
     public const OPENENDED_LIMIT = 60;
 
+    /** @var string[] Question types whose answers can be opened to see who gave them. */
+    public const LISTED_TYPES = [
+        interaction_manager::TYPE_MULTICHOICE,
+        interaction_manager::TYPE_DROPDOWN,
+        interaction_manager::TYPE_FILLBLANK,
+    ];
+
     /**
      * How many students have submitted an answer to a round.
      *
@@ -70,19 +77,28 @@ class aggregator {
             'incorrectcount' => 0,
         ];
 
+        // Who picked each answer, for the presenter only. It lets a teacher open
+        // an answer and credit everyone behind it, which is how a question with
+        // a mistake in its own answer key gets put right in front of the room.
+        $authors = null;
+        if ($withauthors && in_array($interaction->qtype, self::LISTED_TYPES, true)) {
+            $authors = self::group_authors(self::answer_authors((int)$round->id));
+            $result['people'] = self::people($authors['all']);
+        }
+
         switch ($interaction->qtype) {
             case interaction_manager::TYPE_WORDCLOUD:
                 $result['words'] = self::wordcloud((int)$round->id);
                 break;
 
             case interaction_manager::TYPE_MULTICHOICE:
-                $result['choices'] = self::choice_tally($interaction, (int)$round->id, $includecorrect);
+                $result['choices'] = self::choice_tally($interaction, (int)$round->id, $includecorrect, $authors);
                 break;
 
             case interaction_manager::TYPE_DROPDOWN:
                 // One tally per position, drawn the same way the blanks of a
                 // fill in the blank are.
-                $result['blanks'] = self::position_tally($interaction, (int)$round->id, $includecorrect);
+                $result['blanks'] = self::position_tally($interaction, (int)$round->id, $includecorrect, $authors);
                 break;
 
             case interaction_manager::TYPE_VIDEO:
@@ -91,7 +107,7 @@ class aggregator {
                 break;
 
             case interaction_manager::TYPE_FILLBLANK:
-                $result['blanks'] = self::blank_tally($interaction, (int)$round->id, $includecorrect);
+                $result['blanks'] = self::blank_tally($interaction, (int)$round->id, $includecorrect, $authors);
                 break;
 
             case interaction_manager::TYPE_OPENENDED:
@@ -240,9 +256,11 @@ class aggregator {
      * @param stdClass $interaction
      * @param int $roundid
      * @param bool $includecorrect
+     * @param array|null $authors from {@see self::group_authors()}; adds key and userids to each choice
      * @return array[]
      */
-    public static function choice_tally(stdClass $interaction, int $roundid, bool $includecorrect): array {
+    public static function choice_tally(stdClass $interaction, int $roundid, bool $includecorrect,
+            ?array $authors = null): array {
         global $DB;
 
         $counts = $DB->get_records_sql(
@@ -261,13 +279,18 @@ class aggregator {
         $choices = [];
         foreach ($interaction->options ?? [] as $option) {
             $votes = isset($counts[$option->id]) ? (int)$counts[$option->id]->votes : 0;
-            $choices[] = [
+            $choice = [
                 'id' => (int)$option->id,
                 'text' => (string)$option->optiontext,
                 'count' => $votes,
                 'percent' => $total > 0 ? (int)round($votes * 100 / $total) : 0,
                 'iscorrect' => $includecorrect ? (int)$option->iscorrect : 0,
             ];
+            if ($authors !== null) {
+                $choice['key'] = self::option_key((int)$option->id);
+                $choice['userids'] = $authors['options'][(int)$option->id] ?? [];
+            }
+            $choices[] = $choice;
         }
 
         return $choices;
@@ -279,9 +302,11 @@ class aggregator {
      * @param stdClass $interaction
      * @param int $roundid
      * @param bool $includecorrect
+     * @param array|null $authors from {@see self::group_authors()}; adds key and userids to each entry
      * @return array[]
      */
-    public static function blank_tally(stdClass $interaction, int $roundid, bool $includecorrect): array {
+    public static function blank_tally(stdClass $interaction, int $roundid, bool $includecorrect,
+            ?array $authors = null): array {
         global $DB;
 
         $blanks = [];
@@ -309,11 +334,17 @@ class aggregator {
                 if ((int)$row->iscorrect === 1) {
                     $correct += $count;
                 }
-                $entries[] = [
+                $entry = [
                     'text' => (string)($row->displaytext !== null ? $row->displaytext : $row->normtext),
                     'count' => $count,
                     'iscorrect' => $includecorrect ? (int)$row->iscorrect : 0,
                 ];
+                if ($authors !== null) {
+                    $entry['key'] = self::text_key((int)$blank->id, (string)$row->normtext);
+                    $entry['userids'] = self::text_authors($authors['texts'][(int)$blank->id] ?? [],
+                        (string)$row->normtext, $count);
+                }
+                $entries[] = $entry;
             }
 
             $answerlist = $blank->answerlist ?? text_util::decode_answers($blank->answers);
@@ -343,9 +374,11 @@ class aggregator {
      * @param stdClass $interaction with blanks and their options attached
      * @param int $roundid
      * @param bool $includecorrect whether the answer has been revealed
+     * @param array|null $authors from {@see self::group_authors()}; adds key and userids to each entry
      * @return array[] one entry per position
      */
-    public static function position_tally(stdClass $interaction, int $roundid, bool $includecorrect): array {
+    public static function position_tally(stdClass $interaction, int $roundid, bool $includecorrect,
+            ?array $authors = null): array {
         global $DB;
 
         $counts = $DB->get_records_sql(
@@ -368,11 +401,16 @@ class aggregator {
                 if ((int)$option->iscorrect === 1) {
                     $correct += $count;
                 }
-                $entries[] = [
+                $entry = [
                     'text' => (string)$option->optiontext,
                     'count' => $count,
                     'iscorrect' => $includecorrect ? (int)$option->iscorrect : 0,
                 ];
+                if ($authors !== null) {
+                    $entry['key'] = self::option_key((int)$option->id);
+                    $entry['userids'] = $authors['options'][(int)$option->id] ?? [];
+                }
+                $entries[] = $entry;
             }
 
             $answerlist = [];
@@ -396,6 +434,148 @@ class aggregator {
         }
 
         return $blanks;
+    }
+
+    /**
+     * Every stored answer of a round with the person who gave it.
+     *
+     * @param int $roundid
+     * @return stdClass[] each with blankid, optionid, normtext and userid
+     */
+    public static function answer_authors(int $roundid): array {
+        global $DB;
+
+        return $DB->get_records_sql(
+            'SELECT a.id, a.blankid, a.optionid, a.normtext, r.userid
+               FROM {interactiveslide_answer} a
+               JOIN {interactiveslide_response} r ON r.id = a.responseid
+              WHERE a.roundid = :roundid
+           ORDER BY a.id ASC',
+            ['roundid' => $roundid]
+        );
+    }
+
+    /**
+     * Group answer rows into who chose each option and who typed each text.
+     *
+     * The text of a typed answer is grouped by its normalised form, the same key
+     * the tally counts by, so the list behind a chip is exactly the people that
+     * chip counted.
+     *
+     * @param stdClass[] $rows from {@see self::answer_authors()}
+     * @return array{options: array, texts: array, all: int[]} user id lists are unique and ascending
+     */
+    public static function group_authors(array $rows): array {
+        $options = [];
+        $texts = [];
+        $all = [];
+
+        foreach ($rows as $row) {
+            $userid = (int)$row->userid;
+            $all[$userid] = $userid;
+
+            if ((int)$row->optionid > 0) {
+                $options[(int)$row->optionid][$userid] = $userid;
+            } else if ((int)$row->blankid > 0 && (string)$row->normtext !== '') {
+                $texts[(int)$row->blankid][(string)$row->normtext][$userid] = $userid;
+            }
+        }
+
+        $flatten = static function(array $set): array {
+            ksort($set);
+            return array_values($set);
+        };
+
+        foreach ($options as $optionid => $set) {
+            $options[$optionid] = $flatten($set);
+        }
+        foreach ($texts as $blankid => $bytext) {
+            foreach ($bytext as $text => $set) {
+                $texts[$blankid][$text] = $flatten($set);
+            }
+        }
+
+        return ['options' => $options, 'texts' => $texts, 'all' => $flatten($all)];
+    }
+
+    /**
+     * Who is behind one chip of a typed answer.
+     *
+     * The chip was grouped by the database, and MySQL's usual collations compare
+     * without regard to case or accents: "an" and "ăn" become one chip there and
+     * two on PostgreSQL. Matching the exact text first and falling back to a
+     * folded comparison only when the numbers disagree gives the list the chip
+     * actually counted, on either database.
+     *
+     * @param array $bytext normalised text => user ids, for one blank
+     * @param string $normtext the text the database grouped under
+     * @param int $count how many answers the chip shows
+     * @return int[]
+     */
+    public static function text_authors(array $bytext, string $normtext, int $count): array {
+        $exact = $bytext[$normtext] ?? [];
+        if (count($exact) === $count) {
+            return $exact;
+        }
+
+        $folded = text_util::search_fold($normtext);
+        $set = [];
+        foreach ($bytext as $text => $userids) {
+            if (text_util::search_fold((string)$text) === $folded) {
+                foreach ($userids as $userid) {
+                    $set[$userid] = $userid;
+                }
+            }
+        }
+        ksort($set);
+
+        return array_values($set);
+    }
+
+    /**
+     * The name of everyone who answered, for the lists the presenter opens.
+     *
+     * @param int[] $userids
+     * @return array[] each with userid and fullname
+     */
+    public static function people(array $userids): array {
+        if (!$userids) {
+            return [];
+        }
+
+        $users = userinfo::load($userids);
+
+        $people = [];
+        foreach ($userids as $userid) {
+            $people[] = [
+                'userid' => (int)$userid,
+                'fullname' => userinfo::report_name($users[$userid] ?? userinfo::placeholder((int)$userid)),
+            ];
+        }
+
+        return $people;
+    }
+
+    /**
+     * The key the presenter uses to find a choice again after the next poll.
+     *
+     * @param int $optionid
+     * @return string
+     */
+    public static function option_key(int $optionid): string {
+        return 'o' . $optionid;
+    }
+
+    /**
+     * The key of a typed answer. Hashed, so a student's text never becomes part
+     * of an attribute name or a selector.
+     *
+     * @param int $blankid
+     * @param string $normtext
+     * @return string
+     */
+    public static function text_key(int $blankid, string $normtext): string {
+        return 'b' . $blankid . '-' . substr(sha1($normtext), 0, 12);
     }
 
     /**

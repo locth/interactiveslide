@@ -362,5 +362,6 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $this->add_related_files('mod_interactiveslide', 'intro', null);
         $this->add_related_files('mod_interactiveslide', 'sourcepdf', null);
         $this->add_related_files('mod_interactiveslide', 'slideimage', 'interactiveslide_slide');
+        $this->add_related_files('mod_interactiveslide', 'questionimage', 'interactiveslide_slide');
     }
 }

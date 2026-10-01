@@ -85,6 +85,20 @@ define(['core/ajax'], function(Ajax) {
             });
         },
 
+        awardStarsGroup: function(cmid, everyone, userids, stars, reason) {
+            return call('mod_interactiveslide_award_stars_group', {
+                cmid: cmid,
+                everyone: !!everyone,
+                userids: everyone ? [] : userids,
+                stars: stars,
+                reason: reason || ''
+            });
+        },
+
+        searchLeaderboard: function(cmid, query) {
+            return call('mod_interactiveslide_search_leaderboard', {cmid: cmid, query: query});
+        },
+
         joinAsGuest: function(cmid, name) {
             return call('mod_interactiveslide_join_as_guest', {cmid: cmid, name: name});
         },

@@ -44,7 +44,8 @@ define([
         'positions', 'blanks', 'addblank', 'options', 'addoption',
         'typedropdown', 'typevideo', 'notadeckfile', 'errorarchivetoolarge',
         'importmode_desc', 'importreplace', 'importingdeck', 'deckimported',
-        'deckimportedwarnings', 'deckrepriced', 'decksessionrunning'
+        'deckimportedwarnings', 'deckrepriced', 'decksessionrunning',
+        'choosequestionimage', 'changequestionimage', 'questionimageuploading'
     ];
 
     /**
@@ -88,12 +89,16 @@ define([
             defaults: {easy: 1, medium: 2, hard: 3},
             selectedId: 0,
             draft: null,
+            // The picture hung on the question being edited, as the server named
+            // it. Null until one is picked, and again when it is taken away.
+            questionImage: null,
             dirty: false
         };
 
         bindImport(view);
         bindAddSlide(view);
         bindImportDeck(view);
+        bindQuestionImage(view);
         bindSlideTools(view);
         bindInspector(view);
 
@@ -372,11 +377,19 @@ define([
         setLocked(view, locked);
 
         if (qtype === 'none') {
+            setQuestionImage(view, null);
             return;
         }
 
         setField(view, 'questiontext', interaction.questiontext);
         setField(view, 'videourl', interaction.videourl || '');
+        setField(view, 'mediavideourl', interaction.mediavideourl || '');
+        setQuestionImage(view, interaction.mediaimage ? {
+            filename: interaction.mediaimage,
+            url: interaction.mediaimageurl || '',
+            width: interaction.mediaimagewidth || 0,
+            height: interaction.mediaimageheight || 0
+        } : null);
         setField(view, 'maxentries', interaction.maxentries);
         setField(view, 'maxwordlength', interaction.maxwordlength);
         setField(view, 'points', interaction.points);
@@ -555,6 +568,9 @@ define([
         var passive = qtype === 'video';
 
         Util.toggle(Util.region(view.root, 'videofield'), passive);
+        // A video question is already a video; a second one beside it would be
+        // a puzzle. The picture is offered whatever the question asks.
+        Util.toggle(Util.region(view.root, 'mediavideofield'), !passive);
         Util.toggle(Util.region(view.root, 'participationfields'), participation);
         Util.toggle(Util.region(view.root, 'maxentriesfield'), qtype === 'wordcloud');
         Util.toggle(Util.region(view.root, 'answertoggle'), !participation && !passive && qtype !== 'none');
@@ -1223,6 +1239,10 @@ define([
             maxwordlength: parseInt(field(view, 'maxwordlength').value, 10) || 30,
             casesensitive: 0,
             videourl: field(view, 'videourl') ? field(view, 'videourl').value : '',
+            mediaimage: view.questionImage ? view.questionImage.filename : '',
+            mediaimagewidth: view.questionImage ? view.questionImage.width : 0,
+            mediaimageheight: view.questionImage ? view.questionImage.height : 0,
+            mediavideourl: field(view, 'mediavideourl') ? field(view, 'mediavideourl').value : '',
             allowretry: field(view, 'allowretry').checked ? 1 : 0,
             options: collectOptions(view),
             blanks: collectBlanks(view)
@@ -1241,6 +1261,127 @@ define([
                 status.textContent = error.message || view.strings.savefailed;
                 status.dataset.tone = 'error';
             }
+        });
+    };
+
+    /**
+     * Show which picture is hung on the question being edited.
+     *
+     * @param {Object} view
+     * @param {Object|null} image filename, url, width, height
+     * @return {void}
+     */
+    var setQuestionImage = function(view, image) {
+        view.questionImage = image;
+
+        var thumb = Util.region(view.root, 'questionimagethumb');
+        var label = Util.region(view.root, 'questionimagelabel');
+        var remove = Util.actions(view.root, 'removequestionimage')[0];
+
+        if (thumb) {
+            if (image && image.url) {
+                thumb.setAttribute('src', image.url);
+            } else {
+                thumb.removeAttribute('src');
+            }
+            thumb.hidden = !(image && image.url);
+        }
+        if (label) {
+            label.textContent = image
+                ? view.strings.changequestionimage
+                : view.strings.choosequestionimage;
+        }
+        if (remove) {
+            remove.hidden = !image;
+        }
+    };
+
+    /**
+     * Upload the picture for the question being edited.
+     *
+     * It goes to the server as soon as it is picked, the way a slide picture
+     * does, so the teacher sees what they chose before saving anything. The
+     * question then stores the name of a file that is already there. A picture
+     * picked and then abandoned is replaced by the next one and removed with
+     * the slide; it is never shown, because the question does not name it.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindQuestionImage = function(view) {
+        var input = Util.region(view.root, 'questionimageinput');
+        var status = Util.region(view.root, 'questionimagestatus');
+
+        var say = function(message, tone) {
+            if (status) {
+                status.textContent = message || '';
+                status.dataset.tone = tone || 'info';
+            }
+        };
+
+        Util.actions(view.root, 'removequestionimage').forEach(function(button) {
+            button.addEventListener('click', function() {
+                setQuestionImage(view, null);
+                say('');
+                // The file is taken away by the save, not by the button: until
+                // then the teacher can still change their mind by reloading.
+                view.dirty = true;
+            });
+        });
+
+        if (!input) {
+            return;
+        }
+
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            input.value = '';
+
+            if (!file) {
+                return;
+            }
+            if (!/^image\//.test(file.type)) {
+                say(view.strings.notanimage, 'error');
+                return;
+            }
+            if (!view.selectedId) {
+                return;
+            }
+
+            var form = new FormData();
+            form.append('cmid', view.config.cmid);
+            form.append('sesskey', view.config.sesskey);
+            form.append('action', 'questionimage');
+            form.append('slideid', view.selectedId);
+            form.append('image', file, file.name);
+
+            say(view.strings.questionimageuploading, 'info');
+
+            fetch(view.config.uploadurl, {
+                method: 'POST',
+                body: form,
+                credentials: 'same-origin'
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            }).then(function(payload) {
+                if (payload.status !== 'ok') {
+                    throw new Error(payload.message || view.strings.uploadfailed);
+                }
+                setQuestionImage(view, {
+                    filename: payload.filename,
+                    url: payload.imageurl,
+                    width: payload.width,
+                    height: payload.height
+                });
+                say('');
+                view.dirty = true;
+                return payload;
+            }).catch(function(error) {
+                say(error.message || view.strings.uploadfailed, 'error');
+            });
         });
     };
 

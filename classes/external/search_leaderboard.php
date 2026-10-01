@@ -20,16 +20,19 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
-use mod_interactiveslide\local\interaction_manager;
+use mod_interactiveslide\local\leaderboard;
 
 /**
- * Remove the interaction from a slide.
+ * Find participants of the running session by name.
+ *
+ * The presenter filters its own board while the whole class fits on it. This is
+ * for the class that does not: the board is capped, the session is not.
  *
  * @package    mod_interactiveslide
  * @copyright  2026 Interactive Slide contributors
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class delete_interaction extends external_api {
+class search_leaderboard extends external_api {
 
     /**
      * Parameters.
@@ -39,37 +42,32 @@ class delete_interaction extends external_api {
     public static function execute_parameters(): external_function_parameters {
         return new external_function_parameters([
             'cmid' => new external_value(PARAM_INT, 'Course module id'),
-            'slideid' => new external_value(PARAM_INT, 'Slide to clear'),
+            // Only ever compared against names, never stored or printed.
+            'query' => new external_value(PARAM_RAW, 'Part of a name'),
         ]);
     }
 
     /**
-     * Delete the interaction and everything recorded for it.
+     * Run the search.
      *
      * @param int $cmid
-     * @param int $slideid
+     * @param string $query
      * @return array
      */
-    public static function execute(int $cmid, int $slideid): array {
-        global $DB;
+    public static function execute(int $cmid, string $query): array {
+        $params = self::validate_parameters(self::execute_parameters(), ['cmid' => $cmid, 'query' => $query]);
 
-        $params = self::validate_parameters(self::execute_parameters(),
-            ['cmid' => $cmid, 'slideid' => $slideid]);
-
-        $resolved = helper::resolve_for_editor($params['cmid']);
+        $resolved = helper::resolve_for_presenter($params['cmid']);
         self::validate_context($resolved['context']);
 
-        $slide = $DB->get_record('interactiveslide_slide',
-            ['id' => $params['slideid'], 'interactiveslideid' => $resolved['instance']->id], '*', MUST_EXIST);
+        $session = helper::require_active_session($resolved['instance']);
 
-        foreach ($DB->get_fieldset_select('interactiveslide_interaction', 'id', 'slideid = ?', [$slide->id]) as $id) {
-            interaction_manager::delete_interaction((int)$id);
-        }
+        $board = leaderboard::search_session_board((int)$session->id, $resolved['context'],
+            \core_text::substr((string)$params['query'], 0, 100));
 
-        // The question is gone, so is the picture that was hung on it.
-        interaction_manager::delete_question_image($resolved['context'], (int)$slide->id);
-
-        return ['status' => 1];
+        return [
+            'board' => json_encode($board, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ];
     }
 
     /**
@@ -79,7 +77,7 @@ class delete_interaction extends external_api {
      */
     public static function execute_returns(): external_single_structure {
         return new external_single_structure([
-            'status' => new external_value(PARAM_INT, '1 on success'),
+            'board' => new external_value(PARAM_RAW, 'Matching leaderboard rows, JSON encoded'),
         ]);
     }
 }

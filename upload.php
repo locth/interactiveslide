@@ -209,6 +209,69 @@ switch ($action) {
         ]);
         break;
 
+    case 'questionimage':
+        // A picture for the question on one slide. Stored against the slide
+        // because the question may not have been saved yet, and a slide carries
+        // at most one question.
+        $slideid = required_param('slideid', PARAM_INT);
+
+        $slide = $DB->get_record('interactiveslide_slide',
+            ['id' => $slideid, 'interactiveslideid' => $instance->id]);
+        if (!$slide) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorslidenotfound', 'mod_interactiveslide'),
+            ]);
+        }
+
+        if (empty($_FILES['image']) || $_FILES['image']['error'] !== UPLOAD_ERR_OK
+                || !is_uploaded_file($_FILES['image']['tmp_name'])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('erroruploadfailed', 'mod_interactiveslide'),
+            ]);
+        }
+
+        $maxbytes = get_max_upload_file_size($CFG->maxbytes, $course->maxbytes ?? 0);
+        if ($maxbytes > 0 && filesize($_FILES['image']['tmp_name']) > $maxbytes) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errorimagetoolarge', 'mod_interactiveslide', display_size($maxbytes)),
+            ]);
+        }
+
+        // The bytes decide what the file is, not its name and not the browser.
+        $imageinfo = @getimagesize($_FILES['image']['tmp_name']);
+        $allowedtypes = [
+            IMAGETYPE_PNG => 'png',
+            IMAGETYPE_JPEG => 'jpg',
+            IMAGETYPE_GIF => 'gif',
+            IMAGETYPE_WEBP => 'webp',
+        ];
+
+        if (!$imageinfo || !isset($allowedtypes[$imageinfo[2]])) {
+            interactiveslide_reply([
+                'status' => 'error',
+                'message' => get_string('errornotanimage', 'mod_interactiveslide'),
+            ]);
+        }
+
+        // The stored name is built here, never taken from the upload: it is the
+        // only part of the URL the browser gets to choose otherwise.
+        $filename = 'question-' . (int)$slideid . '.' . $allowedtypes[$imageinfo[2]];
+        \mod_interactiveslide\local\interaction_manager::store_question_image(
+            $context, (int)$slideid, $_FILES['image']['tmp_name'], $filename);
+
+        interactiveslide_reply([
+            'status' => 'ok',
+            'filename' => $filename,
+            'width' => (int)$imageinfo[0],
+            'height' => (int)$imageinfo[1],
+            'imageurl' => \mod_interactiveslide\local\interaction_manager::question_image_url(
+                $context, (object)['slideid' => (int)$slideid, 'mediaimage' => $filename]),
+        ]);
+        break;
+
     case 'importdeck':
         // No default mode. A missing one must never fall through to the arm
         // that deletes the deck.
