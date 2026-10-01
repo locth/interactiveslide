@@ -430,6 +430,50 @@ define([
     };
 
     /**
+     * Draw the picture and the video that go with a question.
+     *
+     * Pass null to empty the box: a video that is merely hidden goes on playing,
+     * and a lecture hall does not need a soundtrack from a panel nobody can see.
+     *
+     * The video only ever arrives on the presenter's screen — the server does
+     * not put its URL in a student's state document — so there is no test for
+     * which screen this is. There is nothing here to hide.
+     *
+     * @param {Element} container
+     * @param {Object|null} data the media branch of the interaction
+     * @param {Object} strings
+     * @param {Object} [options] compact for a smaller box
+     * @return {Boolean} whether there is anything to show
+     */
+    var media = function(container, data, strings, options) {
+        options = options || {};
+
+        redrawIfChanged(container, [data, options], function() {
+            var html = '';
+
+            if (data && data.image && data.image.url) {
+                var ratio = (data.image.width > 0 && data.image.height > 0)
+                    ? ' style="aspect-ratio:' + Number(data.image.width) + ' / ' + Number(data.image.height) + '"'
+                    : '';
+                html += '<figure class="islide-media-figure">' +
+                    '<img class="islide-zoomable" src="' + esc(data.image.url) + '"' + ratio +
+                    ' title="' + esc(strings.enlargeimage) + '"' +
+                    ' alt="' + esc(strings.questionimagealt) + '">' +
+                    '</figure>';
+            }
+
+            if (data && data.video) {
+                html += '<div class="islide-media-figure islide-media-clip">' +
+                    videoEmbed({video: data.video}, strings) + '</div>';
+            }
+
+            container.innerHTML = html;
+        });
+
+        return !!(data && (data.image || data.video));
+    };
+
+    /**
      * Draw a ranked leaderboard.
      *
      * @param {Element} container
@@ -520,6 +564,7 @@ define([
     return {
         results: results,
         prompt: prompt,
+        media: media,
         leaderboard: leaderboard,
         emptyNote: emptyNote
     };

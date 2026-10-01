@@ -167,7 +167,7 @@ function interactiveslide_pluginfile($course, $cm, $context, $filearea, $args, $
         return false;
     }
 
-    $allowedareas = ['slideimage', 'sourcepdf', 'intro'];
+    $allowedareas = ['slideimage', 'questionimage', 'sourcepdf', 'intro'];
     if (!in_array($filearea, $allowedareas, true)) {
         return false;
     }

@@ -89,5 +89,29 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026090801, 'interactiveslide');
     }
 
+    if ($oldversion < 2026092100) {
+        // A picture and a video can now be hung on any question. The picture is
+        // a file in the questionimage area, named by this column; the video is
+        // a link, resolved against the provider list every time it is drawn.
+        $table = new xmldb_table('interactiveslide_interaction');
+
+        $fields = [
+            new xmldb_field('mediaimage', XMLDB_TYPE_CHAR, '255', null, null, null, null, 'videourl'),
+            new xmldb_field('mediaimagewidth', XMLDB_TYPE_INTEGER, '10', null,
+                XMLDB_NOTNULL, null, '0', 'mediaimage'),
+            new xmldb_field('mediaimageheight', XMLDB_TYPE_INTEGER, '10', null,
+                XMLDB_NOTNULL, null, '0', 'mediaimagewidth'),
+            new xmldb_field('mediavideourl', XMLDB_TYPE_CHAR, '1333', null, null, null, null, 'mediaimageheight'),
+        ];
+
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        upgrade_mod_savepoint(true, 2026092100, 'interactiveslide');
+    }
+
     return true;
 }

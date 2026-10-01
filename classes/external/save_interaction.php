@@ -78,7 +78,7 @@ class save_interaction extends external_api {
             throw new moodle_exception('errorinvalidpayload', 'mod_interactiveslide');
         }
 
-        $interactionid = interaction_manager::save_from_payload((int)$slide->id, $data);
+        $interactionid = interaction_manager::save_from_payload((int)$slide->id, $data, $resolved['context']);
 
         return ['interactionid' => $interactionid];
     }

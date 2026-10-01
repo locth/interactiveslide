@@ -187,6 +187,7 @@ class slide_manager {
         }
 
         get_file_storage()->delete_area_files($context->id, 'mod_interactiveslide', self::FILEAREA_IMAGE, $slideid);
+        interaction_manager::delete_question_image($context, $slideid);
 
         $slide = $DB->get_record('interactiveslide_slide', ['id' => $slideid]);
         $DB->delete_records('interactiveslide_slide', ['id' => $slideid]);

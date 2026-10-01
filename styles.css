@@ -3644,3 +3644,234 @@ body.mod-interactiveslide-immersive .islide-transport {
     font-weight: 800;
     font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Pictures and videos hung on a question ---------- */
+
+/* The student's copy. The box is held open at the picture's own shape while it
+ * loads, so the answer buttons do not move under a finger already reaching for
+ * them — the phone is the one screen where that costs somebody an answer. */
+.islide-question-media {
+    margin: 0 0 .9rem;
+    display: flex;
+    justify-content: center;
+}
+
+.islide-question-media img {
+    width: auto;
+    max-width: 100%;
+    max-height: 38vh;
+    aspect-ratio: var(--islide-media-aspect, auto);
+    object-fit: contain;
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+}
+
+/* The presenter's copy, above the tally.
+ *
+ * Bounded twice: by a share of the overlay, which is the box this has to leave
+ * room in for the question and the answers, and by the viewport, which is what
+ * the rest of the overlay's typography is sized against. A picture and a clip
+ * together sit side by side and take half the row each. */
+.islide-overlay-media {
+    flex: 0 1 auto;
+    min-height: 0;
+    max-height: 46%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(.75rem, 1.4vw, 1.5rem);
+}
+
+/* Room for the tally once there is one to read. */
+.islide-overlay-media-compact {
+    max-height: 30%;
+}
+
+.islide-media-figure {
+    margin: 0;
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    max-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.islide-media-figure img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    max-height: min(100%, 34vh);
+    object-fit: contain;
+    border-radius: var(--islide-radius-sm);
+}
+
+.islide-overlay-media-compact .islide-media-figure img {
+    max-height: min(100%, 22vh);
+}
+
+/* The clip keeps 16:9, so bounding its width bounds its height. */
+.islide-media-clip {
+    flex: 0 1 auto;
+    width: min(100%, 40vw);
+}
+
+.islide-overlay-media-compact .islide-media-clip {
+    width: min(100%, 26vw);
+}
+
+.islide-media-clip .islide-video {
+    margin: 0;
+}
+
+/* The editor's controls. */
+.islide-media {
+    display: grid;
+    gap: .75rem;
+    margin: 0;
+    padding: .85rem 1rem 1rem;
+    border: 1px solid var(--islide-line);
+    border-radius: var(--islide-radius-sm);
+    background: var(--islide-canvas);
+}
+
+.islide-media > legend {
+    padding: 0 .35rem;
+    float: none;
+    width: auto;
+    font-size: .85rem;
+}
+
+.islide-media-image {
+    display: flex;
+    align-items: flex-start;
+    gap: .9rem;
+    flex-wrap: wrap;
+}
+
+.islide-media-thumb {
+    width: 7.5rem;
+    height: 5rem;
+    object-fit: cover;
+    border-radius: var(--islide-radius-sm);
+    border: 1px solid var(--islide-line);
+    background: var(--islide-surface);
+}
+
+.islide-media-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .35rem;
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+/* The picker is a <label> wrapping a hidden file input, so it has to be made
+ * to look like the button it behaves as — on its own it reads as a line of
+ * text, which is exactly how it was being missed. */
+.islide-media-pick {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .45rem 1rem;
+    border: 1.5px solid var(--islide-accent);
+    border-radius: 999px;
+    background: var(--islide-surface);
+    color: var(--islide-accent-strong);
+    font-weight: 600;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background .15s ease, box-shadow .15s ease;
+}
+
+.islide-media-pick::before {
+    content: "\1F5BC\FE0F";
+    font-size: .95em;
+}
+
+.islide-media-pick:hover {
+    background: var(--islide-accent-soft);
+}
+
+/* The input inside is hidden, so its focus ring has to be borrowed. */
+.islide-media-pick:focus-within {
+    background: var(--islide-accent-soft);
+    box-shadow: 0 0 0 3px var(--islide-accent-soft);
+}
+
+/* Taking the picture away is the quieter of the two: a plain danger-coloured
+ * link, so it cannot be mistaken for the button that adds one. */
+.islide-linkbtn {
+    padding: .35rem .1rem;
+    border: 0;
+    background: none;
+    color: var(--islide-danger);
+    font: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.islide-linkbtn:hover {
+    text-decoration: none;
+}
+
+/* ---------- Full size picture viewer ---------- */
+
+/* A question's picture is capped on both screens so it cannot push the answers
+ * off, which on a dense diagram means the room can see it but not read it.
+ * Tapping it puts it up whole. */
+.islide-zoomable {
+    cursor: zoom-in;
+}
+
+.islide-imageviewer {
+    position: fixed;
+    inset: 0;
+    /* Over the overlay, the group panel and the transport bar alike. */
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(.75rem, 2vw, 2rem);
+    background: rgba(8, 11, 20, .92);
+    animation: islide-fadein .15s ease both;
+}
+
+.islide-imageviewer img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: var(--islide-radius-sm);
+    /* The picture itself is the way out too, on a screen with no keyboard. */
+    cursor: zoom-out;
+}
+
+.islide-imageviewer-close {
+    position: absolute;
+    top: clamp(.5rem, 1.5vw, 1.25rem);
+    right: clamp(.5rem, 1.5vw, 1.25rem);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .12);
+    color: #ffffff;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.islide-imageviewer-close:hover,
+.islide-imageviewer-close:focus-visible {
+    background: rgba(255, 255, 255, .24);
+}

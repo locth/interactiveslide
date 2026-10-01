@@ -192,8 +192,23 @@ class deck_importer {
                 $created[] = $slideid;
 
                 if ($slide['interaction'] !== null) {
+                    // The picture goes in before the question is saved: the
+                    // question stores the name of a file that is already there.
+                    // A picture that will not decode costs the picture and not
+                    // the question, like a slide picture below.
+                    $payload = $slide['interaction'];
+                    $stored = self::store_question_image($context, $slideid, $directory, $payload);
+                    if ($stored === null && (string)($payload['mediaimagefile'] ?? '') !== '') {
+                        $warnings[] = (string)$payload['mediaimagefile'];
+                    }
+                    if ($stored !== null) {
+                        $payload['mediaimage'] = $stored['filename'];
+                        $payload['mediaimagewidth'] = $stored['width'];
+                        $payload['mediaimageheight'] = $stored['height'];
+                    }
+
                     try {
-                        interaction_manager::save_from_payload($slideid, $slide['interaction']);
+                        interaction_manager::save_from_payload($slideid, $payload, $context);
                     } catch (moodle_exception $e) {
                         // Deliberately fatal, where a bad picture below is not.
                         // A missing picture is obvious in the filmstrip; a
@@ -299,6 +314,56 @@ class deck_importer {
     }
 
     /**
+     * Store the picture that goes with an imported question.
+     *
+     * The same three independent checks the slide pictures get: the name must
+     * match a closed pattern, the resolved path must still be inside the
+     * extraction directory, and the bytes must decode as a picture.
+     *
+     * @param context_module $context
+     * @param int $slideid
+     * @param string $directory
+     * @param array $payload the interaction as the manifest reader left it
+     * @return array{filename: string, width: int, height: int}|null null when there is
+     *     no picture, or the archive's copy cannot be used
+     */
+    private static function store_question_image(context_module $context, int $slideid,
+            string $directory, array $payload): ?array {
+        $name = (string)($payload['mediaimagefile'] ?? '');
+        if ($name === '') {
+            return null;
+        }
+
+        if (!deck_archive::is_valid_image_name($name, deck_archive::QUESTION_IMAGE_DIR)) {
+            return null;
+        }
+
+        $real = realpath($directory . '/' . $name);
+        $root = realpath($directory);
+        if ($real === false || $root === false || strpos($real, $root . DIRECTORY_SEPARATOR) !== 0) {
+            return null;
+        }
+        if (!is_readable($real)) {
+            return null;
+        }
+
+        $info = @getimagesize($real);
+        $types = deck_archive::image_types();
+        if (!$info || !isset($types[$info[2]])) {
+            return null;
+        }
+
+        if (!empty($payload['mediaimagesha1']) && sha1_file($real) !== $payload['mediaimagesha1']) {
+            return null;
+        }
+
+        $filename = 'question-' . $slideid . '.' . $types[$info[2]];
+        interaction_manager::store_question_image($context, $slideid, $real, $filename);
+
+        return ['filename' => $filename, 'width' => (int)$info[0], 'height' => (int)$info[1]];
+    }
+
+    /**
      * Remove the pictures written for a set of slides.
      *
      * @param context_module $context
@@ -311,6 +376,7 @@ class deck_importer {
         foreach ($slideids as $slideid) {
             $fs->delete_area_files($context->id, 'mod_interactiveslide',
                 slide_manager::FILEAREA_IMAGE, $slideid);
+            interaction_manager::delete_question_image($context, (int)$slideid);
         }
     }
 }

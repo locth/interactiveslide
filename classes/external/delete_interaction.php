@@ -66,6 +66,9 @@ class delete_interaction extends external_api {
             interaction_manager::delete_interaction((int)$id);
         }
 
+        // The question is gone, so is the picture that was hung on it.
+        interaction_manager::delete_question_image($resolved['context'], (int)$slide->id);
+
         return ['status' => 1];
     }
 

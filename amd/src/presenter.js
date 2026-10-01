@@ -46,6 +46,7 @@ define([
         'roundopened', 'roundclosedtoast', 'answerrevealed', 'awardstar', 'awardreason', 'starawarded',
         'nosessionyet', 'nosessionyet_desc', 'waitingforslides', 'collectinganswers',
         'showresultscreen', 'hideresultscreen', 'novideo', 'video',
+        'questionimagealt', 'enlargeimage',
         'awardclasstitle', 'awardclass_desc', 'awardgroup', 'groupawarded', 'groupawardreason',
         'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching'
     ];
@@ -129,12 +130,14 @@ define([
         });
 
         view.annotate = Annotate.create(root);
+        view.imageViewer = Util.imageViewer(root);
         offerStandaloneLaunch();
 
         loadDeck(view);
         bindControls(view);
         bindBoardSearch(view);
         bindGroupAward(view);
+        bindImageViewer(view);
         bindKeyboard(view);
 
         view.poller.start();
@@ -320,9 +323,8 @@ define([
         });
 
         on('closeoverlay', function() {
-            closeGroup(view);
             view.overlayDismissed = true;
-            Util.toggle(Util.region(view.root, 'overlay'), false);
+            hideOverlayNow(view);
         });
 
         on('toggleoverlay', function() {
@@ -452,9 +454,8 @@ define([
                     break;
 
                 case 'Escape':
-                    closeGroup(view);
                     view.overlayDismissed = true;
-                    Util.toggle(Util.region(view.root, 'overlay'), false);
+                    hideOverlayNow(view);
                     break;
 
                 case 'f':
@@ -713,6 +714,7 @@ define([
         var overlay = Util.region(view.root, 'overlay');
         var body = Util.region(view.root, 'overlay-body');
         var boardPanel = Util.region(view.root, 'overlay-board');
+        var mediaBox = Util.region(view.root, 'overlay-media');
 
         var hasRound = !!(state.round && state.interaction);
         // Dismissal comes first, always. The leaderboard decides whether there is
@@ -724,8 +726,7 @@ define([
             && (hasRound || view.boardVisible);
 
         if (!wantOverlay) {
-            Util.toggle(overlay, false);
-            closeGroup(view);
+            hideOverlayNow(view);
             stopTimer(view);
             return;
         }
@@ -747,6 +748,16 @@ define([
                 count.textContent = state.round.responsecount + ' / ' + state.participantcount;
                 count.title = view.strings.responsesreceived;
             }
+        }
+
+        // The picture the question is about, and the clip the room watches. Both
+        // sit above the tally rather than inside it, so they stay put when the
+        // answers start arriving.
+        var hasMedia = Render.media(mediaBox, hasRound ? state.interaction.media : null, view.strings);
+        Util.toggle(mediaBox, hasMedia);
+        if (mediaBox) {
+            // Room for the tally once there is one to read.
+            mediaBox.classList.toggle('islide-overlay-media-compact', !!state.results);
         }
 
         if (hasRound && !state.results) {
@@ -1044,6 +1055,26 @@ define([
     };
 
     /**
+     * Tapping the question's picture puts it up whole.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindImageViewer = function(view) {
+        var box = Util.region(view.root, 'overlay-media');
+        if (!box) {
+            return;
+        }
+
+        box.addEventListener('click', function(event) {
+            var picture = event.target.closest('img');
+            if (picture) {
+                view.imageViewer.open(picture.getAttribute('src'));
+            }
+        });
+    };
+
+    /**
      * Open the group panel.
      *
      * @param {Object} view
@@ -1214,6 +1245,27 @@ define([
         });
 
         Util.toggle(panel, true);
+    };
+
+    /**
+     * Put the overlay away, with everything that was living inside it.
+     *
+     * The media box is emptied rather than hidden: a video in a hidden box goes
+     * on playing, and a lecture hall does not need a soundtrack from a panel
+     * nobody can see. Both the buttons and the state loop come through here, so
+     * there is one way down rather than three.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var hideOverlayNow = function(view) {
+        Util.toggle(Util.region(view.root, 'overlay'), false);
+        closeGroup(view);
+        view.imageViewer.close();
+
+        var mediaBox = Util.region(view.root, 'overlay-media');
+        Render.media(mediaBox, null, view.strings);
+        Util.toggle(mediaBox, false);
     };
 
     /**

@@ -130,6 +130,12 @@
                 </div>
             </div>
 
+            <figure class="islide-question-media" data-region="questionmedia" hidden>
+                <img class="islide-zoomable" data-region="questionimage" src=""
+                     title="{{#str}}enlargeimage, mod_interactiveslide{{/str}}"
+                     alt="{{#str}}questionimagealt, mod_interactiveslide{{/str}}">
+            </figure>
+
             <div class="islide-answer-form" data-region="answerform"></div>
 
             <div class="islide-answer-foot">
@@ -145,5 +151,16 @@
         <div class="islide-board-panel" data-region="leaderboard" hidden></div>
     </div>
 
+    </div>
+
+    <div class="islide-imageviewer" data-region="imageviewer" role="dialog" aria-modal="true"
+         aria-label="{{#str}}questionimagealt, mod_interactiveslide{{/str}}" hidden>
+        <button type="button" class="islide-imageviewer-close" data-action="closeimageviewer"
+                title="{{#str}}closeimage, mod_interactiveslide{{/str}}">
+            <span aria-hidden="true">&#10005;</span>
+            <span class="islide-sr-only">{{#str}}closeimage, mod_interactiveslide{{/str}}</span>
+        </button>
+        <img data-region="imageviewer-image" src=""
+             alt="{{#str}}questionimagealt, mod_interactiveslide{{/str}}">
     </div>
 </div>

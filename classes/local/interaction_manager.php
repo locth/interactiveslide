@@ -16,6 +16,7 @@
 
 namespace mod_interactiveslide\local;
 
+use context_module;
 use moodle_exception;
 use stdClass;
 
@@ -45,6 +46,9 @@ class interaction_manager {
 
     /** @var string A video played on the projector. Nothing is collected. */
     public const TYPE_VIDEO = 'video';
+
+    /** @var string File area holding the picture hung on a question, keyed by slide id. */
+    public const FILEAREA_QUESTIONIMAGE = 'questionimage';
 
     /** @var int Longest answer an open ended question may accept. */
     public const MAX_OPENENDED_LENGTH = 1000;
@@ -316,7 +320,7 @@ class interaction_manager {
      * @return int the interaction id
      * @throws moodle_exception when the payload is not a usable question
      */
-    public static function save_from_payload(int $slideid, array $data): int {
+    public static function save_from_payload(int $slideid, array $data, ?context_module $context = null): int {
         global $DB;
 
         $qtype = (string)($data['qtype'] ?? '');
@@ -367,6 +371,35 @@ class interaction_manager {
         }
         $record->allowretry = (int)!empty($data['allowretry']);
         $record->timemodified = time();
+
+        // The picture and the video that go with the question, whatever it asks.
+        // The picture is a file that was uploaded before this save; only its
+        // name travels in the payload, and the name is one the server chose.
+        $record->mediaimage = null;
+        $record->mediaimagewidth = 0;
+        $record->mediaimageheight = 0;
+        $imagename = clean_param((string)($data['mediaimage'] ?? ''), PARAM_FILE);
+        if ($imagename !== '') {
+            $record->mediaimage = \core_text::substr($imagename, 0, 255);
+            $record->mediaimagewidth = max(0, min(20000, (int)($data['mediaimagewidth'] ?? 0)));
+            $record->mediaimageheight = max(0, min(20000, (int)($data['mediaimageheight'] ?? 0)));
+        } else if ($context) {
+            // Cleared in the editor: take the file away too, rather than leaving
+            // it in the file area for nobody.
+            self::delete_question_image($context, $slideid);
+        }
+
+        $record->mediavideourl = null;
+        // A video question already is a video; a second one would be a puzzle.
+        if ($qtype !== self::TYPE_VIDEO) {
+            $mediavideo = trim((string)($data['mediavideourl'] ?? ''));
+            if ($mediavideo !== '') {
+                if (self::video_embed($mediavideo) === null) {
+                    throw new moodle_exception('errorvideourl', 'mod_interactiveslide');
+                }
+                $record->mediavideourl = \core_text::substr($mediavideo, 0, 1333);
+            }
+        }
 
         // A video pays nothing, and must not enter the denominator the gradebook
         // divides by: there is no way for a student to earn it.
@@ -766,6 +799,108 @@ class interaction_manager {
         $DB->delete_records('interactiveslide_option', ['interactionid' => $interactionid]);
         $DB->delete_records('interactiveslide_blank', ['interactionid' => $interactionid]);
         $DB->delete_records('interactiveslide_interaction', ['id' => $interactionid]);
+    }
+
+    /**
+     * The picture and the video that go with a question, for one screen.
+     *
+     * The video is for the presenter alone. That is not a CSS decision: the
+     * resolved URL is simply not put in the document a student receives, so
+     * there is nothing on the phone to reveal. A teacher plays a clip on the
+     * projector for the room to watch together; thirty phones playing the same
+     * clip out of step, on the hall's wifi, is not the same thing.
+     *
+     * The picture goes to both, because it is part of the question: hiding it
+     * from the people answering would leave them reading about something they
+     * cannot see. It is sent even when the site keeps slide images off student
+     * devices, which is a bandwidth rule about scanned lecture pages.
+     *
+     * @param context_module $context
+     * @param stdClass $interaction
+     * @param bool $ispresenter
+     * @return array{image: array|null, video: array|null}
+     */
+    public static function export_media(context_module $context, stdClass $interaction,
+            bool $ispresenter): array {
+        $image = null;
+        if (!empty($interaction->mediaimage)) {
+            $image = [
+                'url' => self::question_image_url($context, $interaction),
+                'width' => (int)($interaction->mediaimagewidth ?? 0),
+                'height' => (int)($interaction->mediaimageheight ?? 0),
+            ];
+        }
+
+        $video = null;
+        if ($ispresenter && !empty($interaction->mediavideourl)) {
+            // Resolved on every render rather than stored, so the page never
+            // receives a URL that has not been through the provider list.
+            $video = self::video_embed((string)$interaction->mediavideourl);
+        }
+
+        return ['image' => $image, 'video' => $video];
+    }
+
+    /**
+     * The URL of the picture hung on a question.
+     *
+     * @param context_module $context
+     * @param stdClass $interaction
+     * @return string empty when the question has no picture
+     */
+    public static function question_image_url(context_module $context, stdClass $interaction): string {
+        if (empty($interaction->mediaimage)) {
+            return '';
+        }
+
+        return \moodle_url::make_pluginfile_url(
+            $context->id,
+            'mod_interactiveslide',
+            self::FILEAREA_QUESTIONIMAGE,
+            (int)$interaction->slideid,
+            '/',
+            (string)$interaction->mediaimage
+        )->out(false);
+    }
+
+    /**
+     * Store the picture for a question, replacing any picture already there.
+     *
+     * Keyed by slide rather than by interaction, because the teacher picks the
+     * picture while building a question that has not been saved yet and so has
+     * no id. A slide carries at most one question, so the two are the same thing.
+     *
+     * @param context_module $context
+     * @param int $slideid
+     * @param string $filepath the uploaded temporary file
+     * @param string $filename the name to store it under
+     * @return void
+     */
+    public static function store_question_image(context_module $context, int $slideid,
+            string $filepath, string $filename): void {
+        $fs = get_file_storage();
+        $fs->delete_area_files($context->id, 'mod_interactiveslide', self::FILEAREA_QUESTIONIMAGE, $slideid);
+
+        $fs->create_file_from_pathname([
+            'contextid' => $context->id,
+            'component' => 'mod_interactiveslide',
+            'filearea' => self::FILEAREA_QUESTIONIMAGE,
+            'itemid' => $slideid,
+            'filepath' => '/',
+            'filename' => $filename,
+        ], $filepath);
+    }
+
+    /**
+     * Remove the picture hung on a slide's question.
+     *
+     * @param context_module $context
+     * @param int $slideid
+     * @return void
+     */
+    public static function delete_question_image(context_module $context, int $slideid): void {
+        get_file_storage()->delete_area_files($context->id, 'mod_interactiveslide',
+            self::FILEAREA_QUESTIONIMAGE, $slideid);
     }
 
     /**

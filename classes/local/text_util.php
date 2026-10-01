@@ -29,8 +29,62 @@ namespace mod_interactiveslide\local;
  */
 class text_util {
 
-    /** @var string Characters trimmed from both ends of a submitted entry. */
-    private const TRIM_CHARS = " \t\n\r\0\x0B.,;:!?\"'()[]{}<>/\\|`~@#$%^&*_+=-";
+    /**
+     * Characters trimmed from both ends of a submitted entry.
+     *
+     * Sentence punctuation only. It used to be every punctuation mark on the
+     * keyboard, which forgave "Paris." but also quietly turned "-5" into "5",
+     * "<" into nothing, and — in a digital logic class — B'D' into B'D, so a
+     * student who left the last complement off was marked correct. What a
+     * teacher types in an answer key is the answer; only the full stop at the
+     * end of a sentence is noise.
+     *
+     * @var string
+     */
+    private const TRIM_CHARS = " \t\n\r\0\x0B.,;:!?";
+
+    /** @var string[] Quote pairs stripped when they wrap the whole entry. */
+    private const WRAPPING_QUOTES = ["'", '"'];
+
+    /**
+     * Typographic characters a keyboard substitutes, and the plain ones they
+     * stand for.
+     *
+     * A phone turns ' into ’ as you type, and a laptop does not. The two look
+     * the same on a projector and are different bytes, so an answer key typed
+     * on the teacher's laptop as B'D' was not matched by the same answer typed
+     * on a student's phone as B’D’ — which is a student losing a star for
+     * owning a phone. Primes are in the list because that is what a phone
+     * offers for a derivative or a complement, and dashes because the same
+     * substitution happens to them.
+     *
+     * Diacritics are still never folded: in Vietnamese "ma", "má" and "mà" are
+     * different words. This is only about punctuation nobody chose.
+     *
+     * @var array<string, string>
+     */
+    private const PUNCTUATION_FOLD = [
+        // Single quotes, apostrophes and primes.
+        "\u{2018}" => "'", "\u{2019}" => "'", "\u{201A}" => "'", "\u{201B}" => "'",
+        "\u{2032}" => "'", "\u{00B4}" => "'", "\u{02B9}" => "'", "\u{02BC}" => "'",
+        "\u{02C8}" => "'", "\u{FF07}" => "'",
+        // Double quotes.
+        "\u{201C}" => '"', "\u{201D}" => '"', "\u{201E}" => '"', "\u{201F}" => '"',
+        "\u{2033}" => '"', "\u{02BA}" => '"', "\u{FF02}" => '"',
+        // Dashes and the minus sign.
+        "\u{2010}" => '-', "\u{2011}" => '-', "\u{2012}" => '-', "\u{2013}" => '-',
+        "\u{2014}" => '-', "\u{2015}" => '-', "\u{2212}" => '-', "\u{FF0D}" => '-',
+    ];
+
+    /**
+     * Replace typographic punctuation with the plain equivalent.
+     *
+     * @param string $text
+     * @return string
+     */
+    public static function fold_punctuation(string $text): string {
+        return strtr($text, self::PUNCTUATION_FOLD);
+    }
 
     /**
      * Normalise a submitted entry so equivalent answers group together.
@@ -41,16 +95,40 @@ class text_util {
      */
     public static function normalise(string $text, bool $casesensitive = false): string {
         $text = self::strip_invisible($text);
+        // Before the trim below, so that a curly apostrophe at the end of an
+        // answer is trimmed exactly as a straight one is.
+        $text = self::fold_punctuation($text);
         // Collapse every run of whitespace (including Unicode spaces) to one space.
         $text = preg_replace('/[\p{Z}\s]+/u', ' ', $text);
         $text = trim((string)$text);
         $text = trim($text, self::TRIM_CHARS);
+        $text = self::strip_wrapping_quotes($text);
 
         if (!$casesensitive) {
             $text = \core_text::strtolower($text);
         }
 
         return \core_text::substr($text, 0, 255);
+    }
+
+    /**
+     * Remove one pair of quotes wrapping a whole entry.
+     *
+     * "Paris" is Paris written with quotes round it. B'D' is not: the mark at
+     * the end is part of the answer and there is no mark at the start to pair
+     * it with, which is what tells the two apart.
+     *
+     * @param string $text already trimmed
+     * @return string
+     */
+    private static function strip_wrapping_quotes(string $text): string {
+        foreach (self::WRAPPING_QUOTES as $quote) {
+            if (strlen($text) >= 2 && $text[0] === $quote && substr($text, -1) === $quote) {
+                return trim(substr($text, 1, -1), self::TRIM_CHARS);
+            }
+        }
+
+        return $text;
     }
 
     /**

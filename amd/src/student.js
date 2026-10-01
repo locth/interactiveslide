@@ -94,6 +94,8 @@ define([
             submitted: {roundid: 0, payload: ''}
         };
 
+        view.imageViewer = Util.imageViewer(root);
+
         view.poller = Poller.create({
             cmid: config.cmid,
             interval: config.pollinterval || 2000,
@@ -104,6 +106,14 @@ define([
                 setConnection(view, status);
             }
         });
+
+        var questionimage = Util.region(root, 'questionimage');
+        if (questionimage) {
+            // A diagram on a phone is worth very little at answer-panel size.
+            questionimage.addEventListener('click', function() {
+                view.imageViewer.open(questionimage.getAttribute('src'));
+            });
+        }
 
         var submitButton = Util.actions(root, 'submit')[0];
         if (submitButton) {
@@ -371,6 +381,11 @@ define([
                 || state.interaction.qtype === 'dropdown';
         }
 
+        // The question's picture, if it has one. The video that may go with the
+        // question never reaches this screen: the server leaves it out of the
+        // state document a student receives, so there is nothing here to hide.
+        showQuestionImage(view, state);
+
         var answered = !!(state.myresponse && state.myresponse.submitted);
         var canAnswer = state.round.status === 'open' && (!answered || state.myresponse.canchange);
 
@@ -418,6 +433,41 @@ define([
             Util.toggle(result, true);
         } else {
             Util.toggle(result, false);
+        }
+    };
+
+    /**
+     * Show the picture that goes with the question, or put the box away.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var showQuestionImage = function(view, state) {
+        var box = Util.region(view.root, 'questionmedia');
+        var image = Util.region(view.root, 'questionimage');
+        if (!box || !image) {
+            return;
+        }
+
+        var media = state.interaction.media || {};
+        var picture = media.image || null;
+
+        if (picture && picture.url) {
+            if (image.getAttribute('src') !== picture.url) {
+                image.setAttribute('src', picture.url);
+            }
+            // Held open at the picture's own shape while it loads, so the answer
+            // buttons do not jump under a finger that is already reaching.
+            if (picture.width > 0 && picture.height > 0) {
+                box.style.setProperty('--islide-media-aspect', picture.width + ' / ' + picture.height);
+            } else {
+                box.style.removeProperty('--islide-media-aspect');
+            }
+            Util.toggle(box, true);
+        } else {
+            image.removeAttribute('src');
+            Util.toggle(box, false);
         }
     };
 

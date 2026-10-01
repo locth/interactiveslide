@@ -85,7 +85,15 @@ Built for **Moodle 5.0+**.
     gap deleted mid-edit removes a position only while nothing has been typed
     into it, so a stray keystroke cannot throw away a list of choices.
   - **Fill in the blanks** — several blanks on one slide, each with its own list
-    of accepted answers and its own star value.
+    of accepted answers and its own star value. Matching ignores case (unless
+    the blank asks for it), collapses runs of spaces, and forgives a full stop
+    at the end or quotes wrapped round the whole answer. It also folds the
+    punctuation a keyboard substitutes on its own: a phone types `’` where a
+    laptop types `'`, and `B’D’` from a phone matches an answer key of `B'D'`
+    typed on a laptop. Curly double quotes, primes and long dashes are folded
+    the same way. **Nothing else is removed** — `-5` keeps its sign, `<` is an
+    answer in its own right, and `B'D` does not match `B'D'`, because in a
+    digital logic class that last mark is the answer.
   - **Open ended** — a written answer, gathered into a wall of cards on the
     projector. No answer key, so everyone who writes something earns the
     participation stars; identical replies are badged with how often they came up.
@@ -100,6 +108,37 @@ Built for **Moodle 5.0+**.
     is refused while the teacher is still looking at the field, not during the
     lecture. YouTube is embedded through `youtube-nocookie.com`: the room did not
     choose to be tracked by being in it.
+
+**A picture, and a clip for the room**
+: Any question can carry a picture and a video, whatever it asks.
+
+  The **picture is part of the question**, so it goes to both screens: the
+  projector and every student's phone. It is sent even when the site keeps slide
+  images off student devices, because that setting is a bandwidth rule about
+  scanned lecture pages, not about the thing being asked. The box is held open
+  at the picture's own shape while it loads, so the answer buttons do not jump
+  under a finger already reaching for them.
+
+  The **video plays on the presenter's screen only**. That is not a CSS
+  decision: the resolved URL is never put in the state document a student
+  receives, so there is nothing on the phone to reveal. A clip is something a
+  room watches together once; thirty phones playing it out of step, on the
+  hall's wifi, is a different and worse thing. Links go through the same closed
+  provider list the video question type uses, and are refused while the teacher
+  is still looking at the field.
+
+  Putting the overlay away empties the box rather than hiding it: a video in a
+  hidden panel goes on playing, and the room does not need a soundtrack from
+  something nobody can see. Pictures travel in deck exports beside the slide
+  images, under names made from the slide's position, and are re-checked byte by
+  byte on the way in.
+
+  The picture is capped on both screens so it cannot push the answers off the
+  bottom, which on a dense diagram means the room can see it but not read it.
+  **Tapping it puts it up whole**, over everything else; the button, the
+  backdrop, the picture itself and `Esc` all put it away again. On the
+  presenter that `Esc` stops there rather than also dismissing the overlay
+  underneath.
 
 **Scoring**
 : Difficulty presets are configured site-wide and default to Easy = 1,
@@ -383,10 +422,11 @@ parts and manual awards are all covered.
 - Editing a question after students have answered it is refused rather than
   silently invalidating the collected responses.
 - Question text and choices are stored exactly as typed, so `<` and `>` survive
-  and every renderer escapes them. One narrow case is left: a fill-in-the-blank
-  whose accepted answer is *only* punctuation (`<` on its own) still matches
-  nothing, because answers are compared with the surrounding punctuation
-  trimmed. `0<x<1` is fine; a bare `<` should be a dropdown choice instead.
+  and every renderer escapes them. Answers are compared with only sentence
+  punctuation trimmed, so `<`, `-5` and `B'D'` are answers in their own right.
+  Answers stored before 2.0.5 were normalised with every punctuation mark
+  trimmed; that only affects how old rounds group identical answers in a
+  report, never what is scored now.
 - The answer panel of a fill in the blank lists the people behind each chip on
   the board, and the board shows the twelve most common answers per blank. A
   rare answer below those twelve has no chip, so it cannot be opened.
