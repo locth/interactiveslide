@@ -206,11 +206,23 @@ class state {
         if ($showresults) {
             // Only the presenter is told who wrote what, so they can hand a star
             // to the student who gave a good answer.
-            $payload['results'] = aggregator::get_results($interaction, $round, $revealed, $ispresenter);
+            $payload['results'] = aggregator::get_results($interaction, $round, $revealed,
+                $ispresenter, $context);
         }
 
         if (!$ispresenter) {
             $payload['myresponse'] = self::export_my_response($round, $interaction, $userid, $revealed);
+
+            // What this person has attached right now, which is not the same as
+            // what they have submitted: a picture is uploaded the moment it is
+            // picked, so it has to survive a reload of the page before the
+            // answer is sent, and has to disappear the moment it is taken away.
+            $payload['myimage'] = '';
+            if ($interaction->qtype === interaction_manager::TYPE_OPENENDED
+                    && !empty($interaction->allowimage)) {
+                $payload['myimage'] = answer_image::url($context, (int)$round->id,
+                    answer_image::current($context, (int)$round->id, $userid));
+            }
         }
 
         return $payload;

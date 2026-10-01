@@ -199,6 +199,18 @@ $string['changequestionimage'] = 'Change the picture';
 $string['removequestionimage'] = 'Remove the picture';
 $string['questionimagealt'] = 'Picture for this question';
 $string['enlargeimage'] = 'View the picture full size';
+
+// A picture a student attaches to an open ended answer.
+$string['allowimage'] = 'Students may attach a picture to their answer';
+$string['allowimage_help'] = 'Adds a button under the answer box for one picture, which is useful when the answer is a sketch, a calculation worked out on paper, or something the student is looking at in the room.
+
+The picture is shown small beside the answer and opens full size when it is tapped. It is kept with the answer: clearing the question, or deleting the session, removes it. A picture may be attached without any text.';
+$string['addanswerimage'] = 'Attach a picture';
+$string['changeanswerimage'] = 'Change the picture';
+$string['removeanswerimage'] = 'Remove the picture';
+$string['answerimagealt'] = 'Picture attached to this answer';
+$string['answerimageuploading'] = 'Sending the picture...';
+$string['erroranswerimagenotallowed'] = 'This question does not take a picture with the answer.';
 $string['closeimage'] = 'Close the picture';
 $string['questionimageuploading'] = 'Uploading the picture…';
 $string['mediavideourl'] = 'Video (teacher screen only)';
@@ -439,6 +451,7 @@ $string['privacy:metadata:response:userid'] = 'The participant who submitted.';
 $string['privacy:metadata:response:iscorrect'] = 'Whether the submission was fully correct.';
 $string['privacy:metadata:response:stars'] = 'Stars awarded for the submission.';
 $string['privacy:metadata:response:timetaken'] = 'How long the participant took to answer.';
+$string['privacy:metadata:response:answerimage'] = 'The file name of a picture attached to an open ended answer.';
 $string['privacy:metadata:response:timecreated'] = 'When the submission was made.';
 $string['privacy:metadata:answer'] = 'The individual parts of a submission, such as one word or one blank.';
 $string['privacy:metadata:answer:answertext'] = 'The text the participant entered.';

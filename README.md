@@ -97,6 +97,12 @@ Built for **Moodle 5.0+**.
   - **Open ended** — a written answer, gathered into a wall of cards on the
     projector. No answer key, so everyone who writes something earns the
     participation stars; identical replies are badged with how often they came up.
+    Switch on **Students may attach a picture to their answer** and each card can
+    also carry one photograph — a sketch, a calculation worked out on paper,
+    something in the room. The picture is shown small, on the phone and on the
+    projector alike, and opens full screen when it is tapped; a picture with no
+    words beside it is an answer in its own right. Two cards carrying pictures
+    are never merged, however alike their wording, because the pictures are not.
   - **Video** — opened with the same Start button as any other interaction, but
     what fills the overlay is an embedded video rather than a question. Nothing
     is collected and no stars are paid, so it never enters the total the
@@ -477,6 +483,13 @@ parts and manual awards are all covered.
 
 - The wordcloud packs words with a spiral pass at render time. Very long entries
   on a narrow screen fall back to a ranked list rather than overlapping.
+- A picture attached to an open ended answer is stored against the round it was
+  given in, so clearing that round or deleting the session takes it away with
+  the answers. It is sent as soon as it is picked rather than held until Submit,
+  which is what lets it survive a reload — and what leaves the occasional file
+  behind when a student picks a picture and then never answers. Those go with the
+  round like any other. Course backups carry them only when the backup carries
+  user data; a deck exported on its own carries the setting, never the answers.
 - The AMD modules are written in `define()` form and `amd/build/*.min.js` are
   plain copies of `amd/src/*.js`, so the plugin runs without a Grunt step. Run
   `grunt amd` in your Moodle root if you want them genuinely minified.

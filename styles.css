@@ -667,12 +667,20 @@
     display: flex;
     align-items: baseline;
     gap: .6rem;
+    /* Both of these, and the min-width on the name below. A flex item keeps
+     * min-width: auto, so without them the activity name - the one thing in
+     * this bar with no length limit - pushes the slide counter out past the
+     * card instead of giving way, and the page gains a sideways scroll. */
     min-width: 0;
+    max-width: 100%;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
 }
 
 .islide-player-name {
     font-weight: 600;
     color: var(--islide-ink);
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -2094,6 +2102,25 @@
     .islide-player-bar {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    /* Stacked, the title has the whole width to itself, so it takes it: a
+     * column flex item is otherwise only as wide as its content wants to be,
+     * which is the whole trouble on a phone. */
+    .islide-player-title {
+        width: 100%;
+    }
+
+    /* And with a line to itself a lecture name is worth reading rather than
+     * cutting after four words. Two lines holds nearly every real title; a
+     * longer one still ends in an ellipsis instead of running off the card. */
+    .islide-player-name {
+        white-space: normal;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        line-clamp: 2;
+        overflow: hidden;
     }
 
     .islide-submit {
@@ -4174,4 +4201,113 @@ body.mod-interactiveslide-immersive .islide-transport {
     border-radius: var(--islide-radius-sm);
     background: var(--islide-accent-soft);
     color: var(--islide-ink);
+}
+
+/* ---------- A picture attached to an open ended answer ----------
+ *
+ * Small wherever it is listed, full size only when it is asked for. A
+ * photograph of a page of working is unreadable at any size a phone can spare
+ * beside the keyboard, and forty of them at a readable size is not a wall any
+ * more, so in both places the picture stands as a token of itself and opens
+ * over everything on a tap.
+ */
+
+.islide-answerimage {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .6rem .75rem;
+    margin-top: .6rem;
+}
+
+.islide-answerimage-pick {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin: 0;
+    padding: .45rem .8rem;
+    border-radius: var(--islide-radius-sm);
+    border: 1px dashed var(--islide-line);
+    background: var(--islide-surface);
+    color: var(--islide-ink);
+    font-size: .95rem;
+    cursor: pointer;
+}
+
+.islide-answerimage-pick:hover,
+.islide-answerimage-pick:focus-within {
+    border-color: var(--islide-accent);
+    border-style: solid;
+}
+
+.islide-answerimage-preview {
+    position: relative;
+    display: inline-flex;
+}
+
+.islide-answerimage-thumb {
+    display: block;
+    width: 4.5rem;
+    height: 4.5rem;
+    object-fit: cover;
+    border-radius: var(--islide-radius-sm);
+    border: 1px solid var(--islide-line);
+    cursor: zoom-in;
+}
+
+.islide-answerimage-remove {
+    position: absolute;
+    top: -.45rem;
+    inset-inline-end: -.45rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--islide-line);
+    border-radius: 50%;
+    background: var(--islide-surface);
+    color: var(--islide-muted);
+    font-size: .75rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.islide-answerimage-remove:hover,
+.islide-answerimage-remove:focus-visible {
+    color: var(--islide-danger);
+    border-color: var(--islide-danger);
+}
+
+/* While the picture is on its way, so a slow hall network looks like work
+ * being done rather than a button that did nothing. */
+.islide-answerimage-busy {
+    opacity: .6;
+    pointer-events: none;
+}
+
+.islide-answerimage .islide-answer-status {
+    flex-basis: 100%;
+}
+
+/* The same picture on the projector's wall of answers. */
+.islide-wall-image {
+    display: block;
+    width: 100%;
+    max-height: 9rem;
+    object-fit: cover;
+    margin-bottom: .55rem;
+    border-radius: var(--islide-radius-sm);
+    border: 1px solid var(--islide-line);
+    cursor: zoom-in;
+}
+
+.islide-overlay-body .islide-wall-image {
+    max-height: clamp(5rem, 18cqh, 14rem);
+}
+
+/* A card that is only a picture has no quotation under it to space away from. */
+.islide-wall-card:has(.islide-wall-image):not(:has(blockquote)) .islide-wall-image {
+    margin-bottom: 0;
 }

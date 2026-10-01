@@ -166,6 +166,37 @@ class session_manager {
     }
 
     /**
+     * The module context the given sessions belong to.
+     *
+     * Needed only to reach the files attached to answers. Every caller passes
+     * sessions of one activity, so one lookup answers for all of them. Returns
+     * null while the activity itself is being deleted: Moodle takes the whole
+     * module context then, files included, so there is nothing left to do.
+     *
+     * @param int[] $sessionids
+     * @return \context_module|null
+     */
+    private static function module_context(array $sessionids): ?\context_module {
+        global $DB;
+
+        [$insql, $params] = $DB->get_in_or_equal($sessionids);
+        $instanceid = (int)$DB->get_field_sql(
+            "SELECT MIN(interactiveslideid) FROM {interactiveslide_session} WHERE id $insql", $params);
+        if (!$instanceid) {
+            return null;
+        }
+
+        $cm = get_coursemodule_from_instance('interactiveslide', $instanceid, 0, false, IGNORE_MISSING);
+        if (!$cm) {
+            return null;
+        }
+
+        $context = \context_module::instance($cm->id, IGNORE_MISSING);
+
+        return $context ?: null;
+    }
+
+    /**
      * Delete a set of sessions and everything recorded during them.
      *
      * @param int[] $sessionids
@@ -180,6 +211,11 @@ class session_manager {
         }
 
         [$insql, $params] = $DB->get_in_or_equal($sessionids);
+
+        // Read before the rows go, used after they have gone: deleting the files
+        // first would leave the pictures missing from answers that still exist
+        // if the transaction below were rolled back.
+        $context = self::module_context($sessionids);
 
         $transaction = $DB->start_delegated_transaction();
 
@@ -197,6 +233,10 @@ class session_manager {
         $DB->delete_records_select('interactiveslide_session', "id $insql", $params);
 
         $transaction->allow_commit();
+
+        if ($context !== null && $roundids) {
+            answer_image::delete_for_rounds($context, $roundids);
+        }
     }
 
     /**
@@ -464,6 +504,8 @@ class session_manager {
         $userids = $DB->get_fieldset_select('interactiveslide_response', 'DISTINCT userid',
             'roundid = ?', [(int)$round->id]);
 
+        $context = self::module_context([(int)$round->sessionid]);
+
         $transaction = $DB->start_delegated_transaction();
 
         $DB->delete_records('interactiveslide_answer', ['roundid' => (int)$round->id]);
@@ -481,6 +523,12 @@ class session_manager {
         self::recalculate_participants((int)$round->sessionid, $userids);
 
         $transaction->allow_commit();
+
+        // Asking the question again asks for a fresh answer, so the pictures
+        // that belonged to the old one go with it.
+        if ($context !== null) {
+            answer_image::delete_for_rounds($context, [(int)$round->id]);
+        }
 
         self::bump((int)$round->sessionid);
     }

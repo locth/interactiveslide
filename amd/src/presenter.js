@@ -50,6 +50,7 @@ define([
         'questionimagealt', 'enlargeimage',
         'awardclasstitle', 'awardclass_desc', 'awardgroup', 'groupawarded', 'groupawardreason',
         'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching',
+        'answerimagealt',
         'guestbadge', 'removeguest', 'confirmremoveguest', 'confirmremoveguest_desc', 'guestremovedtoast',
         'guestlinkcopied', 'guestlinkcopyfailed'
     ];
@@ -1374,14 +1375,12 @@ define([
      * @return {void}
      */
     var bindImageViewer = function(view) {
-        var box = Util.region(view.root, 'overlay-media');
-        if (!box) {
-            return;
-        }
-
-        box.addEventListener('click', function(event) {
-            var picture = event.target.closest('img');
-            if (picture) {
+        // Anything drawn with the zoomable class, wherever it sits: the
+        // question's own picture above the results, and the photographs
+        // students attach to open ended answers on the wall below them.
+        view.root.addEventListener('click', function(event) {
+            var picture = event.target.closest('img.islide-zoomable');
+            if (picture && picture.getAttribute('src')) {
                 view.imageViewer.open(picture.getAttribute('src'));
             }
         });

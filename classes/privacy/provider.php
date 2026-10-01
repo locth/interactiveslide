@@ -60,6 +60,7 @@ class provider implements
             'iscorrect' => 'privacy:metadata:response:iscorrect',
             'stars' => 'privacy:metadata:response:stars',
             'timetaken' => 'privacy:metadata:response:timetaken',
+            'answerimage' => 'privacy:metadata:response:answerimage',
             'timecreated' => 'privacy:metadata:response:timecreated',
         ], 'privacy:metadata:response');
 

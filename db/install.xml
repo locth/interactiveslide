@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/interactiveslide/db" VERSION="20261001" COMMENT="Interactive Slide activity module"
+<XMLDB PATH="mod/interactiveslide/db" VERSION="20261002" COMMENT="Interactive Slide activity module"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -77,6 +77,7 @@
         <FIELD NAME="mediaimageheight" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="mediavideourl" TYPE="char" LENGTH="1333" NOTNULL="false" SEQUENCE="false" COMMENT="A video shown with the question on the presenter screen only."/>
         <FIELD NAME="allowretry" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Allow a student to change their answer while the round is open."/>
+        <FIELD NAME="allowimage" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Open ended question: a student may attach one picture to their answer."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -193,6 +194,7 @@
         <FIELD NAME="stars" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="bonusstars" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timetaken" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Milliseconds from round open to submission."/>
+        <FIELD NAME="answerimage" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="File name of a picture the student attached, in the answerimage file area. Null for none."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>

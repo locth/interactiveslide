@@ -199,6 +199,18 @@ $string['changequestionimage'] = 'Đổi hình';
 $string['removequestionimage'] = 'Bỏ hình';
 $string['questionimagealt'] = 'Hình minh hoạ cho câu hỏi';
 $string['enlargeimage'] = 'Xem hình cỡ lớn';
+
+// A picture a student attaches to an open ended answer.
+$string['allowimage'] = 'Cho phép sinh viên đính kèm hình vào câu trả lời';
+$string['allowimage_help'] = 'Thêm nút chọn hình bên dưới ô trả lời, cho một hình. Hữu ích khi câu trả lời là hình vẽ, bài giải trên giấy, hoặc thứ sinh viên đang nhìn thấy tại chỗ.
+
+Hình hiện nhỏ cạnh câu trả lời, bấm vào mới mở cỡ lớn. Hình đi kèm câu trả lời: xoá câu hỏi hoặc xoá phiên thì hình cũng mất. Có thể gửi hình mà không cần gõ chữ.';
+$string['addanswerimage'] = 'Đính kèm hình';
+$string['changeanswerimage'] = 'Đổi hình';
+$string['removeanswerimage'] = 'Bỏ hình';
+$string['answerimagealt'] = 'Hình đính kèm câu trả lời';
+$string['answerimageuploading'] = 'Đang gửi hình...';
+$string['erroranswerimagenotallowed'] = 'Câu hỏi này không nhận hình kèm câu trả lời.';
 $string['closeimage'] = 'Đóng hình';
 $string['questionimageuploading'] = 'Đang tải hình lên…';
 $string['mediavideourl'] = 'Video (chỉ hiện trên máy giảng viên)';
@@ -439,6 +451,7 @@ $string['privacy:metadata:response:userid'] = 'Người gửi câu trả lời.'
 $string['privacy:metadata:response:iscorrect'] = 'Câu trả lời có hoàn toàn đúng hay không.';
 $string['privacy:metadata:response:stars'] = 'Số sao được cộng cho câu trả lời.';
 $string['privacy:metadata:response:timetaken'] = 'Thời gian trả lời.';
+$string['privacy:metadata:response:answerimage'] = 'Tên tệp hình đính kèm câu trả lời tự luận.';
 $string['privacy:metadata:response:timecreated'] = 'Thời điểm gửi câu trả lời.';
 $string['privacy:metadata:answer'] = 'Từng phần của một câu trả lời, ví dụ một từ hoặc một chỗ trống.';
 $string['privacy:metadata:answer:answertext'] = 'Nội dung người tham gia đã nhập.';

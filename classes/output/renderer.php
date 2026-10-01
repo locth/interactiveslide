@@ -56,6 +56,9 @@ class renderer extends plugin_renderer_base {
             // Someone who just scanned the code came to take part, not to read a
             // star count, so the lobby is skipped for them.
             'autoenter' => $guestpass,
+            // For the picture a student may attach to an open ended answer.
+            'answeruploadurl' => (new \moodle_url('/mod/interactiveslide/answerupload.php'))->out(false),
+            'sesskey' => sesskey(),
         ]]);
 
         // Counted here rather than polled: a student who has come to look up how

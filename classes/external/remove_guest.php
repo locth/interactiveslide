@@ -68,7 +68,7 @@ class remove_guest extends external_api {
             throw new moodle_exception('errornotparticipant', 'mod_interactiveslide');
         }
 
-        guest::remove($session, $guestid);
+        guest::remove($session, $guestid, $resolved['context']);
 
         return helper::state_response($resolved['instance'], $resolved['context']);
     }

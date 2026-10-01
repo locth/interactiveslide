@@ -156,5 +156,26 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026100100, 'interactiveslide');
     }
 
+    if ($oldversion < 2026100200) {
+        // An open ended question may now invite a picture with the answer. The
+        // flag is the teacher's; the column on the response holds the file name
+        // of what one student actually attached.
+        $table = new xmldb_table('interactiveslide_interaction');
+        $field = new xmldb_field('allowimage', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'allowretry');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('interactiveslide_response');
+        $field = new xmldb_field('answerimage', XMLDB_TYPE_CHAR, '255', null,
+            null, null, null, 'timetaken');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026100200, 'interactiveslide');
+    }
+
     return true;
 }

@@ -251,7 +251,9 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $data->timeclose = $this->apply_date_offset($data->timeclose);
 
         $newid = $DB->insert_record('interactiveslide_round', $data);
-        $this->set_mapping('interactiveslide_round', $oldid, $newid);
+        // true: a round now carries files of its own - the pictures students
+        // attached to open ended answers - and they are keyed by its id.
+        $this->set_mapping('interactiveslide_round', $oldid, $newid, true);
     }
 
     /**
@@ -363,5 +365,8 @@ class restore_interactiveslide_activity_structure_step extends restore_activity_
         $this->add_related_files('mod_interactiveslide', 'sourcepdf', null);
         $this->add_related_files('mod_interactiveslide', 'slideimage', 'interactiveslide_slide');
         $this->add_related_files('mod_interactiveslide', 'questionimage', 'interactiveslide_slide');
+        // Pictures students attached to answers, keyed by the round they were
+        // given in. Present only in a backup that carried user data.
+        $this->add_related_files('mod_interactiveslide', 'answerimage', 'interactiveslide_round');
     }
 }

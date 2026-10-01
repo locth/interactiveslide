@@ -302,7 +302,8 @@ class guest {
      * @return void
      * @throws moodle_exception when the guest is not in this session
      */
-    public static function remove(stdClass $session, int $guestid): void {
+    public static function remove(stdClass $session, int $guestid,
+            ?\context_module $context = null): void {
         global $DB;
 
         if (!$DB->record_exists('interactiveslide_guest', ['id' => $guestid, 'sessionid' => (int)$session->id])) {
@@ -310,6 +311,12 @@ class guest {
         }
 
         $userid = self::userid($guestid);
+
+        // Listed before the rounds' answers go, deleted after: a picture this
+        // guest attached is as much theirs as the words beside it.
+        $roundids = $DB->get_fieldset_select('interactiveslide_round', 'id',
+            'sessionid = ?', [(int)$session->id]);
+
         $transaction = $DB->start_delegated_transaction();
 
         $responseids = $DB->get_fieldset_select('interactiveslide_response', 'id',
@@ -331,6 +338,10 @@ class guest {
         ]);
 
         $transaction->allow_commit();
+
+        if ($context !== null && $roundids) {
+            answer_image::delete_for_user($context, $roundids, $userid);
+        }
 
         session_manager::bump((int)$session->id);
     }

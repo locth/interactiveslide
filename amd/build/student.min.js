@@ -42,7 +42,9 @@ define([
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
         'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
-        'autosubmitting', 'guestbadge', 'errorguestname'
+        'autosubmitting', 'guestbadge', 'errorguestname',
+        'addanswerimage', 'changeanswerimage', 'removeanswerimage', 'answerimagealt',
+        'answerimageuploading', 'notanimage', 'uploadfailed'
     ];
 
     /**
@@ -94,7 +96,8 @@ define([
             submitted: {roundid: 0, payload: ''},
             joining: false,
             guestFocused: false,
-            autoenter: !!config.autoenter
+            autoenter: !!config.autoenter,
+            config: config
         };
 
         view.imageViewer = Util.imageViewer(root);
@@ -110,13 +113,16 @@ define([
             }
         });
 
-        var questionimage = Util.region(root, 'questionimage');
-        if (questionimage) {
-            // A diagram on a phone is worth very little at answer-panel size.
-            questionimage.addEventListener('click', function() {
-                view.imageViewer.open(questionimage.getAttribute('src'));
-            });
-        }
+        // A diagram on a phone is worth very little at answer-panel size, and
+        // neither is a photograph of someone's working. Anything drawn with the
+        // zoomable class opens full size, wherever on the screen it sits and
+        // whenever it was drawn.
+        root.addEventListener('click', function(event) {
+            var picture = event.target.closest('img.islide-zoomable');
+            if (picture && picture.getAttribute('src')) {
+                view.imageViewer.open(picture.getAttribute('src'));
+            }
+        });
 
         var submitButton = Util.actions(root, 'submit')[0];
         if (submitButton) {
@@ -772,8 +778,39 @@ define([
                     ' placeholder="' + esc(view.strings.openendedplaceholder) + '">' +
                     esc(written) +
                 '</textarea>' +
-                '<span class="islide-charcount" data-region="charcount"></span>' +
-                '</div>';
+                '<span class="islide-charcount" data-region="charcount"></span>';
+
+            if (interaction.allowimage) {
+                // The thumbnail is deliberately small. A photograph of a page of
+                // working is unreadable at any size a phone can spare next to
+                // the keyboard, so it stands here as a token of what is
+                // attached, and opens full screen when it is tapped.
+                var attached = state.myimage || '';
+                html += '<div class="islide-answerimage" data-region="answerimage">' +
+                    '<label class="islide-answerimage-pick">' +
+                        '<input type="file" accept="image/*" class="islide-file-input"' +
+                            ' data-region="answerimageinput">' +
+                        '<span data-region="answerimagelabel">' +
+                            esc(attached ? view.strings.changeanswerimage : view.strings.addanswerimage) +
+                        '</span>' +
+                    '</label>' +
+                    '<div class="islide-answerimage-preview" data-region="answerimagepreview"' +
+                        (attached ? '' : ' hidden') + '>' +
+                        '<img class="islide-answerimage-thumb islide-zoomable"' +
+                            ' data-region="answerimagethumb" src="' + esc(attached) + '"' +
+                            ' alt="' + esc(view.strings.answerimagealt) + '">' +
+                        '<button type="button" class="islide-answerimage-remove"' +
+                            ' data-action="removeanswerimage"' +
+                            ' title="' + esc(view.strings.removeanswerimage) + '">' +
+                            '<span aria-hidden="true">&#10005;</span>' +
+                            '<span class="islide-sr-only">' + esc(view.strings.removeanswerimage) + '</span>' +
+                        '</button>' +
+                    '</div>' +
+                    '<p class="islide-answer-status" data-region="answerimagestatus" role="status"></p>' +
+                    '</div>';
+            }
+
+            html += '</div>';
 
         } else if (interaction.qtype === 'fillblank') {
             var byBlank = {};
@@ -830,6 +867,114 @@ define([
             textarea.addEventListener('input', update);
             update();
         }
+
+        bindAnswerImage(view, form, state);
+    };
+
+    /**
+     * The picture a student may attach to an open ended answer.
+     *
+     * It is sent the moment it is picked rather than held until Submit, so that
+     * a phone on a slow hall network spends the time while the student is still
+     * typing, and so that the picture survives a reload of the page. The server
+     * never receives a file name from here: it finds what this person attached
+     * by looking in the round's own area, so there is nothing to forge.
+     *
+     * @param {Object} view
+     * @param {Element} form
+     * @param {Object} state
+     * @return {void}
+     */
+    var bindAnswerImage = function(view, form, state) {
+        var box = form.querySelector('[data-region="answerimage"]');
+        if (!box) {
+            return;
+        }
+
+        var input = box.querySelector('[data-region="answerimageinput"]');
+        var preview = box.querySelector('[data-region="answerimagepreview"]');
+        var thumb = box.querySelector('[data-region="answerimagethumb"]');
+        var label = box.querySelector('[data-region="answerimagelabel"]');
+        var status = box.querySelector('[data-region="answerimagestatus"]');
+        var roundid = state.round.id;
+
+        var say = function(message, tone) {
+            status.textContent = message || '';
+            status.dataset.tone = tone || 'info';
+        };
+
+        var show = function(url) {
+            if (url) {
+                thumb.setAttribute('src', url);
+            } else {
+                thumb.removeAttribute('src');
+            }
+            Util.toggle(preview, !!url);
+            label.textContent = url ? view.strings.changeanswerimage : view.strings.addanswerimage;
+        };
+
+        var send = function(body) {
+            box.classList.add('islide-answerimage-busy');
+
+            return window.fetch(view.config.answeruploadurl, {
+                method: 'POST',
+                body: body,
+                credentials: 'same-origin'
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            }).then(function(payload) {
+                if (payload.status !== 'ok') {
+                    throw new Error(payload.message || view.strings.uploadfailed);
+                }
+                show(payload.imageurl);
+                say('');
+                return payload;
+            }).catch(function(error) {
+                say(error.message || view.strings.uploadfailed, 'error');
+                return null;
+            }).then(function(result) {
+                box.classList.remove('islide-answerimage-busy');
+                return result;
+            });
+        };
+
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            input.value = '';
+
+            if (!file) {
+                return;
+            }
+            if (!/^image\//.test(file.type)) {
+                say(view.strings.notanimage, 'error');
+                return;
+            }
+
+            var body = new FormData();
+            body.append('cmid', view.cmid);
+            body.append('sesskey', view.config.sesskey);
+            body.append('action', 'image');
+            body.append('roundid', roundid);
+            body.append('image', file, file.name);
+
+            say(view.strings.answerimageuploading, 'info');
+            send(body);
+        });
+
+        Util.actions(box, 'removeanswerimage').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var body = new FormData();
+                body.append('cmid', view.cmid);
+                body.append('sesskey', view.config.sesskey);
+                body.append('action', 'remove');
+                body.append('roundid', roundid);
+
+                send(body);
+            });
+        });
     };
 
     /**
@@ -872,7 +1017,13 @@ define([
         if (qtype === 'openended') {
             var textarea = form.querySelector('.islide-openendedinput');
             var written = textarea ? textarea.value.trim() : '';
-            return written === '' ? null : {text: written};
+            // A photograph of a worked solution is an answer, so an empty box
+            // with a picture attached is still something to send. The picture
+            // itself is already on the server and is not named here.
+            var preview = form.querySelector('[data-region="answerimagepreview"]');
+            var hasimage = !!preview && !preview.hidden;
+
+            return (written === '' && !hasimage) ? null : {text: written};
         }
 
         if (qtype === 'multichoice') {

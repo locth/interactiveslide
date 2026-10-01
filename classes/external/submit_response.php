@@ -99,7 +99,7 @@ class submit_response extends external_api {
         }
 
         $response = grader::submit($resolved['instance'], $session, $round, $interaction,
-            $me->userid, $payload);
+            $me->userid, $payload, $resolved['context']);
 
         \mod_interactiveslide\event\response_submitted::create_from_response(
             $resolved['context'], $response)->trigger();

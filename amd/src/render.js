@@ -291,8 +291,19 @@ define([
         var html = '<div class="islide-wall">';
 
         results.texts.forEach(function(entry) {
-            html += '<figure class="islide-wall-card">' +
-                '<blockquote>' + esc(entry.text) + '</blockquote>';
+            html += '<figure class="islide-wall-card">';
+
+            // Small on the wall and full size on a tap: forty cards of
+            // photographs at any readable size is not a wall any more, and the
+            // teacher only wants to look closely at one of them at a time.
+            if (entry.imageurl) {
+                html += '<img class="islide-wall-image islide-zoomable" src="' + esc(entry.imageurl) +
+                    '" alt="' + esc(strings.answerimagealt) + '" loading="lazy">';
+            }
+
+            if (entry.text) {
+                html += '<blockquote>' + esc(entry.text) + '</blockquote>';
+            }
 
             // The server sends names to the presenter only, so a card carries a
             // footer exactly when there is someone to credit.

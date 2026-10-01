@@ -90,7 +90,8 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
 
         $responses = new backup_nested_element('responses');
         $response = new backup_nested_element('response', ['id'], [
-            'userid', 'iscorrect', 'stars', 'bonusstars', 'timetaken', 'timecreated', 'timemodified',
+            'userid', 'iscorrect', 'stars', 'bonusstars', 'timetaken', 'answerimage',
+            'timecreated', 'timemodified',
         ]);
 
         $answers = new backup_nested_element('answers');
@@ -191,6 +192,12 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         // The picture hung on a question is stored against its slide, so it is
         // annotated here rather than on the interaction element.
         $slide->annotate_files('mod_interactiveslide', 'questionimage', 'id');
+        // A picture a student attached to an answer is stored against the round,
+        // so it travels with the responses rather than with the deck - and only
+        // when the backup carries user data at all.
+        if ($userinfo) {
+            $round->annotate_files('mod_interactiveslide', 'answerimage', 'id');
+        }
 
         return $this->prepare_activity_structure($interactiveslide);
     }
