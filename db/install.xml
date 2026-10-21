@@ -284,6 +284,7 @@
         <FIELD NAME="prophecy" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Which of the card's prophecies was read out, counted from 1."/>
         <FIELD NAME="fortuneapplied" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The stars the card promises have been paid."/>
         <FIELD NAME="cleared" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The presenter started the call list over; this person may be called again."/>
+        <FIELD NAME="closed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The class moved on, to another slide or a question, so phones stop showing this call."/>
         <FIELD NAME="pickedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timefortune" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>

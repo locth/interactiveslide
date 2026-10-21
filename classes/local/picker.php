@@ -238,6 +238,7 @@ class picker {
                 'prophecy' => 0,
                 'fortuneapplied' => 0,
                 'cleared' => 0,
+                'closed' => 0,
                 'pickedby' => $pickedby,
                 'timecreated' => $now,
                 'timefortune' => 0,
@@ -278,6 +279,27 @@ class picker {
 
         $DB->set_field('interactiveslide_pick', 'cleared', 1, ['sessionid' => (int)$session->id]);
         session_manager::bump((int)$session->id);
+    }
+
+    /**
+     * Take every open call off the phones: the class has moved on.
+     *
+     * Called when the presenter changes slide or opens a question. Being called
+     * is news for the moment it happens; left up, it covers the answer form of
+     * the next question and tells someone to come to the board long after they
+     * sat down again. The presenter's own overlay is untouched, and a fortune
+     * may still be drawn there; it just no longer reaches the phone.
+     *
+     * The caller bumps the revision as part of its own change.
+     *
+     * @param int $sessionid
+     * @return void
+     */
+    public static function close_calls(int $sessionid): void {
+        global $DB;
+
+        $DB->set_field_select('interactiveslide_pick', 'closed', 1,
+            'sessionid = ? AND closed = 0', [$sessionid]);
     }
 
     /**
@@ -479,12 +501,13 @@ class picker {
     /**
      * What a student's phone needs to know about the latest call.
      *
-     * Only the latest call counts: once the presenter has called someone else,
-     * the last person's news is old.
+     * Only the latest call counts, and only until the class moves on: once the
+     * presenter has called someone else, changed slide or opened a question,
+     * the news is old.
      *
      * @param stdClass $session
      * @param int $userid
-     * @return array|null null when the viewer is not part of the latest call
+     * @return array|null null when the viewer is not part of the latest call, or it is over
      */
     public static function my_call(stdClass $session, int $userid): ?array {
         global $DB;
@@ -501,7 +524,7 @@ class picker {
 
         $pick = $DB->get_record('interactiveslide_pick',
             ['sessionid' => (int)$session->id, 'batch' => $batch, 'userid' => $userid]);
-        if (!$pick) {
+        if (!$pick || !empty($pick->closed)) {
             return null;
         }
 

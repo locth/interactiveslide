@@ -203,5 +203,19 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026102100, 'interactiveslide');
     }
 
+    if ($oldversion < 2026102101) {
+        // A call stays on the phones only until the class moves on. Calls made
+        // before this step have no such mark; they count as still open until
+        // the next slide change or question closes them like any other.
+        $table = new xmldb_table('interactiveslide_pick');
+        $field = new xmldb_field('closed', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'cleared');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026102101, 'interactiveslide');
+    }
+
     return true;
 }

@@ -262,6 +262,7 @@ class session_manager {
 
         $DB->set_field('interactiveslide_session', 'currentslideid', $slideid, ['id' => $session->id]);
         $session->currentslideid = $slideid;
+        picker::close_calls((int)$session->id);
 
         self::bump((int)$session->id);
     }
@@ -336,6 +337,9 @@ class session_manager {
             $round->statechanged = 1;
             $round->id = $DB->insert_record('interactiveslide_round', $round);
         }
+
+        // Whoever was called has had their moment; the phones are for the question now.
+        picker::close_calls((int)$session->id);
 
         self::bump((int)$session->id);
 
