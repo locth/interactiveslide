@@ -328,6 +328,7 @@ class guest {
         }
 
         $DB->delete_records('interactiveslide_award', ['sessionid' => (int)$session->id, 'userid' => $userid]);
+        $DB->delete_records('interactiveslide_pick', ['sessionid' => (int)$session->id, 'userid' => $userid]);
         $DB->delete_records('interactiveslide_participant', ['sessionid' => (int)$session->id, 'userid' => $userid]);
 
         // The name is what got them removed, so it does not stay in the database either.

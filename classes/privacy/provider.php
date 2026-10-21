@@ -84,6 +84,13 @@ class provider implements
             'timecreated' => 'privacy:metadata:award:timecreated',
         ], 'privacy:metadata:award');
 
+        $collection->add_database_table('interactiveslide_pick', [
+            'userid' => 'privacy:metadata:pick:userid',
+            'fortune' => 'privacy:metadata:pick:fortune',
+            'pickedby' => 'privacy:metadata:pick:pickedby',
+            'timecreated' => 'privacy:metadata:pick:timecreated',
+        ], 'privacy:metadata:pick');
+
         // Typed by a visitor with no account, so there is no user to export it
         // to or to delete it for. It lives exactly as long as its session: the
         // session's deletion, the activity's, and a course reset all remove it.
@@ -119,8 +126,9 @@ class provider implements
         ]);
 
         // Running a session is recorded against the presenter, and handing out a
-        // star is recorded against whoever gave it. Both are personal data about
-        // members of staff, so they have to be findable here as well.
+        // star or calling someone to the board against whoever did it. All of
+        // it is personal data about members of staff, so it has to be findable
+        // here as well.
         $staffsql = "SELECT ctx.id
                        FROM {course_modules} cm
                        JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
@@ -128,12 +136,14 @@ class provider implements
                        JOIN {context} ctx ON ctx.instanceid = cm.id AND ctx.contextlevel = :contextlevel
                        JOIN {interactiveslide_session} s ON s.interactiveslideid = i.id
                   LEFT JOIN {interactiveslide_award} a ON a.sessionid = s.id AND a.awardedby = :awardedby
-                      WHERE s.createdby = :createdby OR a.id IS NOT NULL";
+                  LEFT JOIN {interactiveslide_pick} pk ON pk.sessionid = s.id AND pk.pickedby = :pickedby
+                      WHERE s.createdby = :createdby OR a.id IS NOT NULL OR pk.id IS NOT NULL";
 
         $contextlist->add_from_sql($staffsql, [
             'contextlevel' => CONTEXT_MODULE,
             'createdby' => $userid,
             'awardedby' => $userid,
+            'pickedby' => $userid,
         ]);
 
         return $contextlist;
@@ -179,6 +189,16 @@ class provider implements
                         WHERE cm.id = :cmid AND a.awardedby > 0";
 
         $userlist->add_from_sql('awardedby', $awardersql, ['cmid' => $context->instanceid]);
+
+        $pickersql = "SELECT pk.pickedby
+                        FROM {course_modules} cm
+                        JOIN {modules} m ON m.id = cm.module AND m.name = 'interactiveslide'
+                        JOIN {interactiveslide} i ON i.id = cm.instance
+                        JOIN {interactiveslide_session} s ON s.interactiveslideid = i.id
+                        JOIN {interactiveslide_pick} pk ON pk.sessionid = s.id
+                       WHERE cm.id = :cmid AND pk.pickedby > 0";
+
+        $userlist->add_from_sql('pickedby', $pickersql, ['cmid' => $context->instanceid]);
     }
 
     /**
@@ -273,6 +293,17 @@ class provider implements
                     ];
                 }
 
+                $calls = $DB->get_records('interactiveslide_pick',
+                    ['sessionid' => $participant->sessionid, 'userid' => $user->id], 'id ASC');
+                $exportcalls = [];
+                foreach ($calls as $call) {
+                    $fortune = \mod_interactiveslide\local\picker::export_fortune($call);
+                    $exportcalls[] = (object)[
+                        'called' => transform::datetime($call->timecreated),
+                        'fortune' => $fortune ? $fortune['name'] : '',
+                    ];
+                }
+
                 writer::with_context($context)->export_data(
                     [get_string('privacy:sessionpath', 'mod_interactiveslide', $participant->name)],
                     (object)[
@@ -281,6 +312,7 @@ class provider implements
                         'answersgiven' => (int)$participant->responsecount,
                         'joined' => transform::datetime($participant->timejoined),
                         'answers' => $exportanswers,
+                        'calledtoboard' => $exportcalls,
                     ]
                 );
             }
@@ -379,6 +411,8 @@ class provider implements
 
         $DB->delete_records_select('interactiveslide_award',
             "sessionid $sesssql AND userid $usersql", array_merge($sessparams, $userparams));
+        $DB->delete_records_select('interactiveslide_pick',
+            "sessionid $sesssql AND userid $usersql", array_merge($sessparams, $userparams));
         $DB->delete_records_select('interactiveslide_participant',
             "sessionid $sesssql AND userid $usersql", array_merge($sessparams, $userparams));
 
@@ -387,6 +421,8 @@ class provider implements
         // with the member of staff, so only the reference back to them goes.
         $DB->set_field_select('interactiveslide_award', 'awardedby', 0,
             "sessionid $sesssql AND awardedby $usersql", array_merge($sessparams, $userparams));
+        $DB->set_field_select('interactiveslide_pick', 'pickedby', 0,
+            "sessionid $sesssql AND pickedby $usersql", array_merge($sessparams, $userparams));
         $DB->set_field_select('interactiveslide_session', 'createdby', 0,
             "id $sesssql AND createdby $usersql", array_merge($sessparams, $userparams));
     }

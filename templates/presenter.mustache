@@ -344,6 +344,68 @@
                     <button type="button" class="btn btn-outline-primary" data-action="toggleboard">
                         {{#str}}leaderboard, mod_interactiveslide{{/str}}
                     </button>
+                    <button type="button" class="btn islide-pick-toggle" data-action="togglepick" hidden
+                            aria-haspopup="true" aria-expanded="false" aria-controls="islide-pickpanel-{{cmid}}">
+                        <span aria-hidden="true">&#10022;</span> {{#str}}randomcall, mod_interactiveslide{{/str}}
+                    </button>
+                </div>
+
+                <div class="islide-pickpanel" id="islide-pickpanel-{{cmid}}" data-region="pickpanel" hidden>
+                    <h3 class="islide-pickpanel-title">
+                        <span aria-hidden="true">&#10022;</span> {{#str}}randomcall, mod_interactiveslide{{/str}}
+                    </h3>
+                    <div class="islide-pickpanel-field">
+                        <span class="islide-pickpanel-label" id="islide-pickpool-{{cmid}}">
+                            {{#str}}randomcallfrom, mod_interactiveslide{{/str}}
+                        </span>
+                        <div class="islide-seg" role="group" aria-labelledby="islide-pickpool-{{cmid}}">
+                            <button type="button" data-pick-pool="online" aria-pressed="true">
+                                {{#str}}randomcallonline, mod_interactiveslide{{/str}}
+                                <small data-region="pickonline"></small>
+                            </button>
+                            <button type="button" data-pick-pool="all" aria-pressed="false">
+                                {{#str}}randomcallall, mod_interactiveslide{{/str}}
+                                <small data-region="pickall"></small>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="islide-pickpanel-field">
+                        <span class="islide-pickpanel-label" id="islide-pickcount-{{cmid}}">
+                            {{#str}}randomcallcount, mod_interactiveslide{{/str}}
+                        </span>
+                        <div class="islide-seg" role="group" aria-labelledby="islide-pickcount-{{cmid}}">
+                            <button type="button" data-pick-count="1" aria-pressed="true">1</button>
+                            <button type="button" data-pick-count="2" aria-pressed="false">2</button>
+                            <button type="button" data-pick-count="3" aria-pressed="false">3</button>
+                            <button type="button" data-pick-count="5" aria-pressed="false">5</button>
+                        </div>
+                    </div>
+                    <div class="islide-pickpanel-field">
+                        <label class="islide-pickpanel-check">
+                            <input type="checkbox" data-pick-pref="norepeat" checked>
+                            <span>{{#str}}randomcallnorepeat, mod_interactiveslide{{/str}}</span>
+                        </label>
+                        <div class="islide-pickpanel-history">
+                            <span data-region="pickcalled"></span>
+                            <button type="button" class="islide-pickpanel-link" data-action="resetpicks">
+                                {{#str}}randomcallreset, mod_interactiveslide{{/str}}
+                            </button>
+                        </div>
+                        <label class="islide-pickpanel-check">
+                            <input type="checkbox" data-pick-pref="fortune" checked>
+                            <span>
+                                {{#str}}randomcallfortune, mod_interactiveslide{{/str}}
+                                <small>{{#str}}randomcallfortune_desc, mod_interactiveslide{{/str}}</small>
+                            </span>
+                        </label>
+                        <label class="islide-pickpanel-check">
+                            <input type="checkbox" data-pick-pref="sound">
+                            <span>{{#str}}randomcallsound, mod_interactiveslide{{/str}}</span>
+                        </label>
+                    </div>
+                    <button type="button" class="btn islide-pick-toggle islide-pick-go" data-action="pickgo">
+                        {{#str}}randomcallgo, mod_interactiveslide{{/str}}
+                    </button>
                 </div>
             </div>
         </main>

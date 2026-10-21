@@ -28,10 +28,11 @@ define([
     'core/str',
     'core/notification',
     'mod_interactiveslide/api',
+    'mod_interactiveslide/fortune',
     'mod_interactiveslide/poller',
     'mod_interactiveslide/render',
     'mod_interactiveslide/util'
-], function(Str, Notification, Api, Poller, Render, Util) {
+], function(Str, Notification, Api, Fortune, Poller, Render, Util) {
 
     var STRING_KEYS = [
         'waitingforteacher', 'waitingforteacher_desc', 'waitingfornextquestion', 'roundclosed',
@@ -44,8 +45,13 @@ define([
         'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
         'autosubmitting', 'guestbadge', 'errorguestname',
         'addanswerimage', 'changeanswerimage', 'removeanswerimage', 'answerimagealt',
-        'answerimageuploading', 'notanimage', 'uploadfailed'
+        'answerimageuploading', 'notanimage', 'uploadfailed',
+        'youwerecalled', 'youwerecalled_desc', 'youwerecalledwith', 'yourfortunesoon', 'yourfortune',
+        'calledgotit', 'fortuneeffect'
     ];
+
+    /** @var {String} Where a phone remembers which news its owner has already put away. */
+    var CALLED_KEY = 'mod_interactiveslide_called';
 
     /**
      * Boot the student screen.
@@ -97,7 +103,12 @@ define([
             joining: false,
             guestFocused: false,
             autoenter: !!config.autoenter,
-            config: config
+            config: config,
+            // The server's clock at the last state, and ours when it arrived:
+            // being called is timed by the server, whatever this phone's clock says.
+            clock: {server: 0, local: 0},
+            callTimer: null,
+            callShown: ''
         };
 
         view.imageViewer = Util.imageViewer(root);
@@ -137,6 +148,13 @@ define([
             if (event.key === 'Enter' && event.target.matches('.islide-answer input[type="text"]')) {
                 event.preventDefault();
                 submit(view);
+            }
+        });
+
+        root.addEventListener('click', function(event) {
+            var ok = event.target.closest('[data-action="calledok"]');
+            if (ok) {
+                dismissCall(view, ok.getAttribute('data-call'));
             }
         });
 
@@ -338,6 +356,8 @@ define([
         var board = Util.region(view.root, 'leaderboard');
 
         updateStars(view, state);
+        view.clock = {server: state.servertime || 0, local: Date.now()};
+        showCall(view);
 
         if (!state.hassession) {
             Util.toggle(waiting, true);
@@ -415,6 +435,128 @@ define([
             Util.toggle(board, true);
         } else {
             Util.toggle(board, false);
+        }
+    };
+
+    /**
+     * Tell someone they were called to the board, and later what card they drew.
+     *
+     * Each piece of news waits until the projector has shown it to the room, so
+     * nobody learns it from their pocket first. Once put away it stays away,
+     * until there is news it has not shown yet.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var showCall = function(view) {
+        var panel = Util.region(view.root, 'called');
+        if (!panel) {
+            return;
+        }
+        window.clearTimeout(view.callTimer);
+
+        var state = view.state;
+        var call = state && state.hassession ? state.mycall : null;
+        var now = view.clock.server + (Date.now() - view.clock.local) / 1000;
+        var phase = 'none';
+        var wait = 0;
+
+        if (call) {
+            if (now < call.revealat) {
+                wait = call.revealat - now;
+            } else if (call.fortune && now >= call.fortuneat) {
+                phase = 'fortune';
+            } else if (call.fortune) {
+                // Drawn, but still turning over on the projector.
+                phase = 'drawing';
+                wait = call.fortuneat - now;
+            } else {
+                phase = 'called';
+            }
+        }
+        if (wait > 0) {
+            view.callTimer = window.setTimeout(function() {
+                showCall(view);
+            }, Math.ceil(wait * 1000) + 50);
+        }
+
+        var news = call ? call.id + ':' + (phase === 'fortune' ? call.fortune.key + ':' + call.fortune.prophecy.length : 'called')
+            : '';
+        if (phase === 'none' || news === readDismissed(view)) {
+            panel.hidden = true;
+            view.callShown = '';
+            return;
+        }
+
+        var shown = news + ':' + phase;
+        if (view.callShown === shown) {
+            return;
+        }
+        view.callShown = shown;
+
+        var s = view.strings;
+        var ok = '<button type="button" class="btn islide-called-ok" data-action="calledok" data-call="' +
+            Util.escape(news) + '">' + Util.escape(s.calledgotit) + '</button>';
+
+        if (phase === 'fortune') {
+            var card = call.fortune;
+            panel.className = 'islide-called islide-called-fortune';
+            panel.style.setProperty('--islide-acc', Fortune.accent(card.key));
+            panel.innerHTML = '<div class="islide-called-body">' +
+                '<div class="islide-called-label">' + Util.escape(s.yourfortune) + '</div>' +
+                '<div class="islide-called-fcard islide-fcard">' + Fortune.face(card) + '</div>' +
+                '<p class="islide-called-text">' + Util.escape(card.prophecy) + '</p>' +
+                '<div class="islide-called-effect"><b>&#10022; ' + Util.escape(s.fortuneeffect) + ':</b> ' +
+                    Util.escape(card.effect) + '</div>' +
+                ok + '</div>';
+        } else {
+            panel.className = 'islide-called';
+            panel.style.removeProperty('--islide-acc');
+            panel.innerHTML = '<div class="islide-called-body"><div class="islide-called-card">' +
+                '<div class="islide-called-icon" aria-hidden="true">' + Fortune.icon('star') + '</div>' +
+                '<h2>' + Util.escape(s.youwerecalled) + '</h2>' +
+                '<p>' + Util.escape(call.others > 0 ? Fortune.fill(s.youwerecalledwith, call.others)
+                    : s.youwerecalled_desc) + '</p>' +
+                (phase === 'drawing' ? '<p class="islide-called-soon">' + Util.escape(s.yourfortunesoon) + '</p>' : '') +
+                '</div>' + ok + '</div>';
+        }
+        panel.hidden = false;
+
+        if (navigator.vibrate) {
+            navigator.vibrate([120, 60, 120]);
+        }
+    };
+
+    /**
+     * Put the news away for good.
+     *
+     * @param {Object} view
+     * @param {String} news
+     * @return {void}
+     */
+    var dismissCall = function(view, news) {
+        // Kept on the page as well, for a browser that refuses storage.
+        view.dismissedCall = news;
+        try {
+            window.sessionStorage.setItem(CALLED_KEY, news);
+        } catch (e) {
+            // Storage refused: the copy on the page does for as long as it is open.
+        }
+        view.callShown = '';
+        showCall(view);
+    };
+
+    /**
+     * The news last put away on this phone.
+     *
+     * @param {Object} view
+     * @return {String}
+     */
+    var readDismissed = function(view) {
+        try {
+            return window.sessionStorage.getItem(CALLED_KEY) || view.dismissedCall || '';
+        } catch (e) {
+            return view.dismissedCall || '';
         }
     };
 

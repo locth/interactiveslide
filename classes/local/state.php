@@ -92,6 +92,8 @@ class state {
                 'name' => $me->name,
             ],
             'guestlink' => '',
+            'calledcount' => 0,
+            'mycall' => null,
         ];
 
         if (!$session) {
@@ -146,6 +148,14 @@ class state {
         }
 
         $payload = self::add_leaderboard($payload, $instance, $context, $session, $userid, $ispresenter);
+
+        // Being called to the board: the presenter needs only how long the call
+        // list has grown, and a phone only whether its owner is in the last call.
+        if ($ispresenter) {
+            $payload['calledcount'] = count(picker::called_userids((int)$session->id));
+        } else if ($me->canparticipate) {
+            $payload['mycall'] = picker::my_call($session, $userid);
+        }
 
         return $payload;
     }

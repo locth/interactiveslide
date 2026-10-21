@@ -227,6 +227,7 @@ class session_manager {
             $DB->delete_records_select('interactiveslide_round', "id $roundsql", $roundparams);
         }
         $DB->delete_records_select('interactiveslide_award', "sessionid $insql", $params);
+        $DB->delete_records_select('interactiveslide_pick', "sessionid $insql", $params);
         $DB->delete_records_select('interactiveslide_participant', "sessionid $insql", $params);
         // A guest exists only inside the session they joined, so they go with it.
         $DB->delete_records_select('interactiveslide_guest', "sessionid $insql", $params);

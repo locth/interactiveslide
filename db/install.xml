@@ -273,5 +273,29 @@
         <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
       </KEYS>
     </TABLE>
+    <TABLE NAME="interactiveslide_pick" COMMENT="One person called at random by the presenter, and the fortune card they drew. Recorded under the participant id, so a guest is the negative of their guest row.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="batch" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Picks made by one press of the button share a batch number, counted per session."/>
+        <FIELD NAME="position" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Order in which the cards of a batch are revealed."/>
+        <FIELD NAME="fortune" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Key of the fortune card drawn, null until one is drawn."/>
+        <FIELD NAME="prophecy" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Which of the card's prophecies was read out, counted from 1."/>
+        <FIELD NAME="fortuneapplied" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The stars the card promises have been paid."/>
+        <FIELD NAME="cleared" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The presenter started the call list over; this person may be called again."/>
+        <FIELD NAME="pickedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timefortune" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="session-batch" UNIQUE="false" FIELDS="sessionid, batch"/>
+        <INDEX NAME="session-user" UNIQUE="false" FIELDS="sessionid, userid"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>

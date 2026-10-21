@@ -177,5 +177,31 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026100200, 'interactiveslide');
     }
 
+    if ($oldversion < 2026102100) {
+        // Calling someone at random to the board, and the fortune card they draw.
+        $table = new xmldb_table('interactiveslide_pick');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('batch', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('position', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fortune', XMLDB_TYPE_CHAR, '20', null, null, null, null);
+        $table->add_field('prophecy', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fortuneapplied', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('cleared', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('pickedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timefortune', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('sessionid', XMLDB_KEY_FOREIGN, ['sessionid'], 'interactiveslide_session', ['id']);
+        $table->add_index('session-batch', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'batch']);
+        $table->add_index('session-user', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026102100, 'interactiveslide');
+    }
+
     return true;
 }

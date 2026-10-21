@@ -31,9 +31,10 @@ define([
     'mod_interactiveslide/api',
     'mod_interactiveslide/poller',
     'mod_interactiveslide/qrcode',
+    'mod_interactiveslide/randompick',
     'mod_interactiveslide/render',
     'mod_interactiveslide/util'
-], function(Str, Notification, Annotate, Api, Poller, QR, Render, Util) {
+], function(Str, Notification, Annotate, Api, Poller, QR, RandomPick, Render, Util) {
 
     /** @var {String} Body class that lifts the console over the whole viewport. */
     var IMMERSIVE_CLASS = 'mod-interactiveslide-immersive';
@@ -52,7 +53,12 @@ define([
         'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching',
         'answerimagealt',
         'guestbadge', 'removeguest', 'confirmremoveguest', 'confirmremoveguest_desc', 'guestremovedtoast',
-        'guestlinkcopied', 'guestlinkcopyfailed'
+        'guestlinkcopied', 'guestlinkcopyfailed',
+        'pluginname', 'randomcall', 'randomcallpeople', 'randomcallcalled', 'randomcallresetdone',
+        'randomcallskip', 'randomcalldone', 'randomcallagain', 'randomcallaward', 'randomcallawardall',
+        'randomcallawardone', 'randomcallreason', 'randomcallshortfall', 'randomcallmeta',
+        'randomcallstarsgiven', 'drawfortune', 'drawfortunefor', 'fortunecardback', 'fortunenext',
+        'fortuneof', 'fortuneeffect', 'fortuneback', 'fortuneredraw'
     ];
 
     /** @var {Number} The most stars the group panel offers; the server allows up to 100. */
@@ -138,6 +144,18 @@ define([
         });
 
         view.annotate = Annotate.create(root);
+        view.pick = RandomPick.create({
+            root: root,
+            cmid: config.cmid,
+            strings: strings,
+            canaward: config.canaward,
+            adopt: function(state) {
+                view.poller.adopt(state);
+            },
+            toast: function(message, tone) {
+                Util.toast(root, message, tone);
+            }
+        });
         view.imageViewer = Util.imageViewer(root);
         offerStandaloneLaunch();
 
@@ -703,6 +721,11 @@ define([
                 return;
             }
 
+            // A random call on screen owns the keyboard until it is put away.
+            if (view.pick && view.pick.handleKey(event)) {
+                return;
+            }
+
             // A key event can be aimed at something that is not an element, and
             // matches() only exists on elements. Typing into a field is what this
             // is guarding against, so anything else is fair game for a shortcut.
@@ -830,6 +853,7 @@ define([
         }
         Util.toggle(sessionInfo, state.hassession);
         updateInvite(view, state);
+        view.pick.update(state);
 
         if (state.hassession) {
             var code = Util.region(view.root, 'joincode');
