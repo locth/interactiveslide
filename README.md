@@ -171,7 +171,7 @@ file holds lecture content only: no student answers and no grades.
 
 ## For Moodle administrators
 
-- **Requirements:** Moodle 5.0 or later (a separate build is available for Moodle 4.3).
+- **Requirements:** Moodle 4.3 or later, including Moodle 5.x.
 - **Installation:** *Site administration → Plugins → Install plugins*, upload the plugin ZIP and
   follow the upgrade steps. Nothing else needs installing on the server: PDFs are turned into slide
   images in the teacher's own browser.
