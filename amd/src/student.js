@@ -28,10 +28,11 @@ define([
     'core/str',
     'core/notification',
     'mod_interactiveslide/api',
+    'mod_interactiveslide/fortune',
     'mod_interactiveslide/poller',
     'mod_interactiveslide/render',
     'mod_interactiveslide/util'
-], function(Str, Notification, Api, Poller, Render, Util) {
+], function(Str, Notification, Api, Fortune, Poller, Render, Util) {
 
     var STRING_KEYS = [
         'waitingforteacher', 'waitingforteacher_desc', 'waitingfornextquestion', 'roundclosed',
@@ -42,8 +43,15 @@ define([
         'sessionended', 'sessionended_desc', 'selectanswerfirst', 'liveresult', 'stars',
         'openendedplaceholder', 'charactersleft', 'reloadneeded', 'reloadpage',
         'watchtheprojector', 'watchtheprojector_desc', 'chooseanswer', 'position',
-        'autosubmitting'
+        'autosubmitting', 'guestbadge', 'errorguestname',
+        'addanswerimage', 'changeanswerimage', 'removeanswerimage', 'answerimagealt',
+        'answerimageuploading', 'notanimage', 'uploadfailed',
+        'youwerecalled', 'youwerecalled_desc', 'youwerecalledwith', 'yourfortunesoon', 'yourfortune',
+        'calledgotit', 'fortuneeffect'
     ];
+
+    /** @var {String} Where a phone remembers which news its owner has already put away. */
+    var CALLED_KEY = 'mod_interactiveslide_called';
 
     /**
      * Boot the student screen.
@@ -91,7 +99,16 @@ define([
             submitting: false,
             // What this page last sent, so the timer knows whether the form
             // holds anything the server has not been told about.
-            submitted: {roundid: 0, payload: ''}
+            submitted: {roundid: 0, payload: ''},
+            joining: false,
+            guestFocused: false,
+            autoenter: !!config.autoenter,
+            config: config,
+            // The server's clock at the last state, and ours when it arrived:
+            // being called is timed by the server, whatever this phone's clock says.
+            clock: {server: 0, local: 0},
+            callTimer: null,
+            callShown: ''
         };
 
         view.imageViewer = Util.imageViewer(root);
@@ -107,13 +124,16 @@ define([
             }
         });
 
-        var questionimage = Util.region(root, 'questionimage');
-        if (questionimage) {
-            // A diagram on a phone is worth very little at answer-panel size.
-            questionimage.addEventListener('click', function() {
-                view.imageViewer.open(questionimage.getAttribute('src'));
-            });
-        }
+        // A diagram on a phone is worth very little at answer-panel size, and
+        // neither is a photograph of someone's working. Anything drawn with the
+        // zoomable class opens full size, wherever on the screen it sits and
+        // whenever it was drawn.
+        root.addEventListener('click', function(event) {
+            var picture = event.target.closest('img.islide-zoomable');
+            if (picture && picture.getAttribute('src')) {
+                view.imageViewer.open(picture.getAttribute('src'));
+            }
+        });
 
         var submitButton = Util.actions(root, 'submit')[0];
         if (submitButton) {
@@ -131,6 +151,14 @@ define([
             }
         });
 
+        root.addEventListener('click', function(event) {
+            var ok = event.target.closest('[data-action="calledok"]');
+            if (ok) {
+                dismissCall(view, ok.getAttribute('data-call'));
+            }
+        });
+
+        bindGuestJoin(view);
         bindLobby(view);
     };
 
@@ -155,8 +183,16 @@ define([
             return;
         }
 
-        Util.toggle(lobby, true);
-        Util.toggle(live, false);
+        // Someone who scanned the code came to take part, not to read a star
+        // count, so they go straight in.
+        if (view.autoenter) {
+            Util.toggle(lobby, false);
+            Util.toggle(live, true);
+            view.poller.start();
+        } else {
+            Util.toggle(lobby, true);
+            Util.toggle(live, false);
+        }
 
         Util.actions(view.root, 'enter').forEach(function(button) {
             button.addEventListener('click', function() {
@@ -175,6 +211,107 @@ define([
                 window.location.reload();
             });
         });
+    };
+
+    /**
+     * The name form a guest fills in before joining.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindGuestJoin = function(view) {
+        var form = Util.region(view.root, 'guestjoinform');
+        if (!form) {
+            return;
+        }
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            var input = Util.region(view.root, 'guestname');
+            var status = Util.region(view.root, 'guestjoinstatus');
+            var button = Util.region(view.root, 'guestjoinbutton');
+            var name = input ? input.value.trim() : '';
+
+            if (name === '') {
+                if (status) {
+                    status.textContent = view.strings.errorguestname;
+                    status.dataset.tone = 'error';
+                }
+                if (input) {
+                    input.focus();
+                }
+                return;
+            }
+
+            // A slow phone and an impatient thumb must not make two guests.
+            if (view.joining) {
+                return;
+            }
+            view.joining = true;
+            if (button) {
+                button.disabled = true;
+            }
+            if (status) {
+                status.textContent = '';
+            }
+
+            Api.joinAsGuest(view.cmid, name).then(function(response) {
+                view.joining = false;
+                if (button) {
+                    button.disabled = false;
+                }
+                view.poller.adopt(Api.unwrap(response));
+                return response;
+            }).catch(function(error) {
+                view.joining = false;
+                if (button) {
+                    button.disabled = false;
+                }
+                if (status) {
+                    status.textContent = error.message || String(error);
+                    status.dataset.tone = 'error';
+                }
+                view.poller.refresh();
+            });
+        });
+    };
+
+    /**
+     * Put a guest's own screen up when that is what this browser should see.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {Boolean} true when a guest screen has the whole player
+     */
+    var applyGuest = function(view, state) {
+        var guest = state.guest || {};
+        var needsname = !!guest.needsname;
+        var removed = !!guest.removed;
+
+        Util.toggle(Util.region(view.root, 'guestjoin'), needsname);
+        Util.toggle(Util.region(view.root, 'guestremoved'), removed);
+
+        if (!needsname && !removed) {
+            view.guestFocused = false;
+            return false;
+        }
+
+        ['waiting', 'stage', 'answerpanel', 'resultpanel', 'leaderboard', 'mystars', 'myrank'].forEach(function(name) {
+            Util.toggle(Util.region(view.root, name), false);
+        });
+        stopTimer(view);
+
+        // Once, so the keyboard comes up without stealing focus back on every poll.
+        if (needsname && !view.guestFocused) {
+            var input = Util.region(view.root, 'guestname');
+            if (input) {
+                input.focus();
+            }
+            view.guestFocused = true;
+        }
+
+        return true;
     };
 
     /**
@@ -206,6 +343,12 @@ define([
     var apply = function(view, state) {
         view.state = state;
 
+        // A guest who has not given a name, or whom the presenter removed, sees
+        // that and nothing else.
+        if (applyGuest(view, state)) {
+            return;
+        }
+
         var waiting = Util.region(view.root, 'waiting');
         var stage = Util.region(view.root, 'stage');
         var answer = Util.region(view.root, 'answerpanel');
@@ -213,6 +356,8 @@ define([
         var board = Util.region(view.root, 'leaderboard');
 
         updateStars(view, state);
+        view.clock = {server: state.servertime || 0, local: Date.now()};
+        showCall(view);
 
         if (!state.hassession) {
             Util.toggle(waiting, true);
@@ -290,6 +435,128 @@ define([
             Util.toggle(board, true);
         } else {
             Util.toggle(board, false);
+        }
+    };
+
+    /**
+     * Tell someone they were called to the board, and later what card they drew.
+     *
+     * Each piece of news waits until the projector has shown it to the room, so
+     * nobody learns it from their pocket first. Once put away it stays away,
+     * until there is news it has not shown yet.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var showCall = function(view) {
+        var panel = Util.region(view.root, 'called');
+        if (!panel) {
+            return;
+        }
+        window.clearTimeout(view.callTimer);
+
+        var state = view.state;
+        var call = state && state.hassession ? state.mycall : null;
+        var now = view.clock.server + (Date.now() - view.clock.local) / 1000;
+        var phase = 'none';
+        var wait = 0;
+
+        if (call) {
+            if (now < call.revealat) {
+                wait = call.revealat - now;
+            } else if (call.fortune && now >= call.fortuneat) {
+                phase = 'fortune';
+            } else if (call.fortune) {
+                // Drawn, but still turning over on the projector.
+                phase = 'drawing';
+                wait = call.fortuneat - now;
+            } else {
+                phase = 'called';
+            }
+        }
+        if (wait > 0) {
+            view.callTimer = window.setTimeout(function() {
+                showCall(view);
+            }, Math.ceil(wait * 1000) + 50);
+        }
+
+        var news = call ? call.id + ':' + (phase === 'fortune' ? call.fortune.key + ':' + call.fortune.prophecy.length : 'called')
+            : '';
+        if (phase === 'none' || news === readDismissed(view)) {
+            panel.hidden = true;
+            view.callShown = '';
+            return;
+        }
+
+        var shown = news + ':' + phase;
+        if (view.callShown === shown) {
+            return;
+        }
+        view.callShown = shown;
+
+        var s = view.strings;
+        var ok = '<button type="button" class="btn islide-called-ok" data-action="calledok" data-call="' +
+            Util.escape(news) + '">' + Util.escape(s.calledgotit) + '</button>';
+
+        if (phase === 'fortune') {
+            var card = call.fortune;
+            panel.className = 'islide-called islide-called-fortune';
+            panel.style.setProperty('--islide-acc', Fortune.accent(card.key));
+            panel.innerHTML = '<div class="islide-called-body">' +
+                '<div class="islide-called-label">' + Util.escape(s.yourfortune) + '</div>' +
+                '<div class="islide-called-fcard islide-fcard">' + Fortune.face(card) + '</div>' +
+                '<p class="islide-called-text">' + Util.escape(card.prophecy) + '</p>' +
+                '<div class="islide-called-effect"><b>&#10022; ' + Util.escape(s.fortuneeffect) + ':</b> ' +
+                    Util.escape(card.effect) + '</div>' +
+                ok + '</div>';
+        } else {
+            panel.className = 'islide-called';
+            panel.style.removeProperty('--islide-acc');
+            panel.innerHTML = '<div class="islide-called-body"><div class="islide-called-card">' +
+                '<div class="islide-called-icon" aria-hidden="true">' + Fortune.icon('star') + '</div>' +
+                '<h2>' + Util.escape(s.youwerecalled) + '</h2>' +
+                '<p>' + Util.escape(call.others > 0 ? Fortune.fill(s.youwerecalledwith, call.others)
+                    : s.youwerecalled_desc) + '</p>' +
+                (phase === 'drawing' ? '<p class="islide-called-soon">' + Util.escape(s.yourfortunesoon) + '</p>' : '') +
+                '</div>' + ok + '</div>';
+        }
+        panel.hidden = false;
+
+        if (navigator.vibrate) {
+            navigator.vibrate([120, 60, 120]);
+        }
+    };
+
+    /**
+     * Put the news away for good.
+     *
+     * @param {Object} view
+     * @param {String} news
+     * @return {void}
+     */
+    var dismissCall = function(view, news) {
+        // Kept on the page as well, for a browser that refuses storage.
+        view.dismissedCall = news;
+        try {
+            window.sessionStorage.setItem(CALLED_KEY, news);
+        } catch (e) {
+            // Storage refused: the copy on the page does for as long as it is open.
+        }
+        view.callShown = '';
+        showCall(view);
+    };
+
+    /**
+     * The news last put away on this phone.
+     *
+     * @param {Object} view
+     * @return {String}
+     */
+    var readDismissed = function(view) {
+        try {
+            return window.sessionStorage.getItem(CALLED_KEY) || view.dismissedCall || '';
+        } catch (e) {
+            return view.dismissedCall || '';
         }
     };
 
@@ -653,8 +920,39 @@ define([
                     ' placeholder="' + esc(view.strings.openendedplaceholder) + '">' +
                     esc(written) +
                 '</textarea>' +
-                '<span class="islide-charcount" data-region="charcount"></span>' +
-                '</div>';
+                '<span class="islide-charcount" data-region="charcount"></span>';
+
+            if (interaction.allowimage) {
+                // The thumbnail is deliberately small. A photograph of a page of
+                // working is unreadable at any size a phone can spare next to
+                // the keyboard, so it stands here as a token of what is
+                // attached, and opens full screen when it is tapped.
+                var attached = state.myimage || '';
+                html += '<div class="islide-answerimage" data-region="answerimage">' +
+                    '<label class="islide-answerimage-pick">' +
+                        '<input type="file" accept="image/*" class="islide-file-input"' +
+                            ' data-region="answerimageinput">' +
+                        '<span data-region="answerimagelabel">' +
+                            esc(attached ? view.strings.changeanswerimage : view.strings.addanswerimage) +
+                        '</span>' +
+                    '</label>' +
+                    '<div class="islide-answerimage-preview" data-region="answerimagepreview"' +
+                        (attached ? '' : ' hidden') + '>' +
+                        '<img class="islide-answerimage-thumb islide-zoomable"' +
+                            ' data-region="answerimagethumb" src="' + esc(attached) + '"' +
+                            ' alt="' + esc(view.strings.answerimagealt) + '">' +
+                        '<button type="button" class="islide-answerimage-remove"' +
+                            ' data-action="removeanswerimage"' +
+                            ' title="' + esc(view.strings.removeanswerimage) + '">' +
+                            '<span aria-hidden="true">&#10005;</span>' +
+                            '<span class="islide-sr-only">' + esc(view.strings.removeanswerimage) + '</span>' +
+                        '</button>' +
+                    '</div>' +
+                    '<p class="islide-answer-status" data-region="answerimagestatus" role="status"></p>' +
+                    '</div>';
+            }
+
+            html += '</div>';
 
         } else if (interaction.qtype === 'fillblank') {
             var byBlank = {};
@@ -711,6 +1009,114 @@ define([
             textarea.addEventListener('input', update);
             update();
         }
+
+        bindAnswerImage(view, form, state);
+    };
+
+    /**
+     * The picture a student may attach to an open ended answer.
+     *
+     * It is sent the moment it is picked rather than held until Submit, so that
+     * a phone on a slow hall network spends the time while the student is still
+     * typing, and so that the picture survives a reload of the page. The server
+     * never receives a file name from here: it finds what this person attached
+     * by looking in the round's own area, so there is nothing to forge.
+     *
+     * @param {Object} view
+     * @param {Element} form
+     * @param {Object} state
+     * @return {void}
+     */
+    var bindAnswerImage = function(view, form, state) {
+        var box = form.querySelector('[data-region="answerimage"]');
+        if (!box) {
+            return;
+        }
+
+        var input = box.querySelector('[data-region="answerimageinput"]');
+        var preview = box.querySelector('[data-region="answerimagepreview"]');
+        var thumb = box.querySelector('[data-region="answerimagethumb"]');
+        var label = box.querySelector('[data-region="answerimagelabel"]');
+        var status = box.querySelector('[data-region="answerimagestatus"]');
+        var roundid = state.round.id;
+
+        var say = function(message, tone) {
+            status.textContent = message || '';
+            status.dataset.tone = tone || 'info';
+        };
+
+        var show = function(url) {
+            if (url) {
+                thumb.setAttribute('src', url);
+            } else {
+                thumb.removeAttribute('src');
+            }
+            Util.toggle(preview, !!url);
+            label.textContent = url ? view.strings.changeanswerimage : view.strings.addanswerimage;
+        };
+
+        var send = function(body) {
+            box.classList.add('islide-answerimage-busy');
+
+            return window.fetch(view.config.answeruploadurl, {
+                method: 'POST',
+                body: body,
+                credentials: 'same-origin'
+            }).then(function(response) {
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                return response.json();
+            }).then(function(payload) {
+                if (payload.status !== 'ok') {
+                    throw new Error(payload.message || view.strings.uploadfailed);
+                }
+                show(payload.imageurl);
+                say('');
+                return payload;
+            }).catch(function(error) {
+                say(error.message || view.strings.uploadfailed, 'error');
+                return null;
+            }).then(function(result) {
+                box.classList.remove('islide-answerimage-busy');
+                return result;
+            });
+        };
+
+        input.addEventListener('change', function() {
+            var file = input.files && input.files[0];
+            input.value = '';
+
+            if (!file) {
+                return;
+            }
+            if (!/^image\//.test(file.type)) {
+                say(view.strings.notanimage, 'error');
+                return;
+            }
+
+            var body = new FormData();
+            body.append('cmid', view.cmid);
+            body.append('sesskey', view.config.sesskey);
+            body.append('action', 'image');
+            body.append('roundid', roundid);
+            body.append('image', file, file.name);
+
+            say(view.strings.answerimageuploading, 'info');
+            send(body);
+        });
+
+        Util.actions(box, 'removeanswerimage').forEach(function(button) {
+            button.addEventListener('click', function() {
+                var body = new FormData();
+                body.append('cmid', view.cmid);
+                body.append('sesskey', view.config.sesskey);
+                body.append('action', 'remove');
+                body.append('roundid', roundid);
+
+                send(body);
+            });
+        });
     };
 
     /**
@@ -753,7 +1159,13 @@ define([
         if (qtype === 'openended') {
             var textarea = form.querySelector('.islide-openendedinput');
             var written = textarea ? textarea.value.trim() : '';
-            return written === '' ? null : {text: written};
+            // A photograph of a worked solution is an answer, so an empty box
+            // with a picture attached is still something to send. The picture
+            // itself is already on the server and is not named here.
+            var preview = form.querySelector('[data-region="answerimagepreview"]');
+            var hasimage = !!preview && !preview.hidden;
+
+            return (written === '' && !hasimage) ? null : {text: written};
         }
 
         if (qtype === 'multichoice') {

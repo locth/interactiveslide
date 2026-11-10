@@ -77,7 +77,9 @@ class leaderboard {
      *
      * Names are matched here rather than in SQL. Accent-insensitive matching is
      * not something every supported database does the same way, and a session
-     * is a classroom, not a directory.
+     * is a classroom, not a directory. The name matched is the one the board
+     * shows, so a guest is found under the name they typed, and the presenter's
+     * own local filter agrees with this search rather than contradicting it.
      *
      * @param int $sessionid
      * @param context_module $context
@@ -110,7 +112,7 @@ class leaderboard {
         $matches = [];
         foreach ($rows as $key => $row) {
             $user = $users[(int)$row->userid] ?? null;
-            if ($user && text_util::name_matches(fullname($user), $query)) {
+            if ($user && text_util::name_matches(userinfo::display_name($user), $query)) {
                 $matches[$key] = $row;
                 if (count($matches) >= $limit) {
                     break;
@@ -225,17 +227,25 @@ class leaderboard {
                 'beststreak' => (int)$row->beststreak,
                 'fullname' => get_string('anonymousparticipant', 'mod_interactiveslide'),
                 'pictureurl' => '',
+                'isguest' => 0,
             ];
 
             if (isset($users[$userid])) {
                 $user = $users[$userid];
-                $entry['fullname'] = fullname($user);
-                $entry['pictureurl'] = $OUTPUT->user_picture($user, [
-                    'size' => 64,
-                    'link' => false,
-                    'visibletoscreenreaders' => false,
-                    'courseid' => $courseid,
-                ]);
+                $entry['fullname'] = userinfo::display_name($user);
+
+                if (!empty($user->isguest)) {
+                    // There is no account behind a guest to ask for a picture.
+                    $entry['pictureurl'] = userinfo::guest_avatar($user);
+                    $entry['isguest'] = 1;
+                } else {
+                    $entry['pictureurl'] = $OUTPUT->user_picture($user, [
+                        'size' => 64,
+                        'link' => false,
+                        'visibletoscreenreaders' => false,
+                        'courseid' => $courseid,
+                    ]);
+                }
             }
 
             $board[] = $entry;

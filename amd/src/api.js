@@ -99,6 +99,35 @@ define(['core/ajax'], function(Ajax) {
             return call('mod_interactiveslide_search_leaderboard', {cmid: cmid, query: query});
         },
 
+        joinAsGuest: function(cmid, name) {
+            return call('mod_interactiveslide_join_as_guest', {cmid: cmid, name: name});
+        },
+
+        removeGuest: function(cmid, userid) {
+            return call('mod_interactiveslide_remove_guest', {cmid: cmid, userid: userid});
+        },
+
+        pickRandom: function(cmid, count, onlineonly, norepeat) {
+            return call('mod_interactiveslide_pick_random', {
+                cmid: cmid,
+                count: count,
+                onlineonly: !!onlineonly,
+                norepeat: !!norepeat
+            });
+        },
+
+        drawFortune: function(cmid, pickid, redraw) {
+            return call('mod_interactiveslide_draw_fortune', {cmid: cmid, pickid: pickid, redraw: !!redraw});
+        },
+
+        applyFortune: function(cmid, pickid) {
+            return call('mod_interactiveslide_apply_fortune', {cmid: cmid, pickid: pickid});
+        },
+
+        resetPicks: function(cmid) {
+            return call('mod_interactiveslide_reset_picks', {cmid: cmid});
+        },
+
         submitResponse: function(cmid, roundid, answer) {
             return call('mod_interactiveslide_submit_response', {
                 cmid: cmid,

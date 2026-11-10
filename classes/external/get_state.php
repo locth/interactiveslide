@@ -52,8 +52,6 @@ class get_state extends external_api {
      * @return array
      */
     public static function execute(int $cmid, int $knownrevision = -1): array {
-        global $USER;
-
         $params = self::validate_parameters(self::execute_parameters(),
             ['cmid' => $cmid, 'knownrevision' => $knownrevision]);
 
@@ -69,8 +67,7 @@ class get_state extends external_api {
         $ispresenter = has_capability('mod/interactiveslide:present', $resolved['context']);
 
         if (!$ispresenter && $params['knownrevision'] >= 0) {
-            $revision = session_manager::poll_revision(
-                $resolved['instance'], $resolved['context'], (int)$USER->id);
+            $revision = session_manager::poll_revision($resolved['instance'], $resolved['context']);
 
             if ($revision === $params['knownrevision']) {
                 return ['revision' => $revision, 'state' => '', 'changed' => 0];

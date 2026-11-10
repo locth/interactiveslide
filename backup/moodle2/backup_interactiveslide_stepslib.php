@@ -44,7 +44,7 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $interactiveslide = new backup_nested_element('interactiveslide', ['id'], [
             'name', 'intro', 'introformat', 'grade', 'grademethod', 'showleaderboard',
             'leaderboardsize', 'allowlatejoin', 'speedbonus', 'speedbonusmax',
-            'attendancestars', 'anonymousresults', 'pdffilename', 'timecreated', 'timemodified',
+            'attendancestars', 'anonymousresults', 'allowguests', 'pdffilename', 'timecreated', 'timemodified',
         ]);
 
         $slides = new backup_nested_element('slides');
@@ -71,10 +71,16 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         ]);
 
         $sessions = new backup_nested_element('sessions');
+        // guesttoken is left out on purpose. A restored session is always ended,
+        // so its guest link could open nothing, and a live invitation has no
+        // business travelling inside a backup file.
         $session = new backup_nested_element('session', ['id'], [
             'name', 'status', 'currentslideid', 'joincode', 'createdby', 'statechanged',
             'timecreated', 'timeend',
         ]);
+
+        $guests = new backup_nested_element('guests');
+        $guest = new backup_nested_element('guest', ['id'], ['displayname', 'removed', 'timecreated']);
 
         $rounds = new backup_nested_element('rounds');
         $round = new backup_nested_element('round', ['id'], [
@@ -84,7 +90,8 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
 
         $responses = new backup_nested_element('responses');
         $response = new backup_nested_element('response', ['id'], [
-            'userid', 'iscorrect', 'stars', 'bonusstars', 'timetaken', 'timecreated', 'timemodified',
+            'userid', 'iscorrect', 'stars', 'bonusstars', 'timetaken', 'answerimage',
+            'timecreated', 'timemodified',
         ]);
 
         $answers = new backup_nested_element('answers');
@@ -122,6 +129,11 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         $interactiveslide->add_child($sessions);
         $sessions->add_child($session);
 
+        // Guests before rounds: responses, participants and awards name a guest
+        // by id, and restore can only remap an id it has already written.
+        $session->add_child($guests);
+        $guests->add_child($guest);
+
         $session->add_child($rounds);
         $rounds->add_child($round);
 
@@ -152,6 +164,8 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         if ($userinfo) {
             $session->set_source_table('interactiveslide_session',
                 ['interactiveslideid' => backup::VAR_PARENTID], 'id ASC');
+            $guest->set_source_table('interactiveslide_guest',
+                ['sessionid' => backup::VAR_PARENTID], 'id ASC');
             $round->set_source_table('interactiveslide_round',
                 ['sessionid' => backup::VAR_PARENTID], 'id ASC');
             $response->set_source_table('interactiveslide_response',
@@ -178,6 +192,12 @@ class backup_interactiveslide_activity_structure_step extends backup_activity_st
         // The picture hung on a question is stored against its slide, so it is
         // annotated here rather than on the interaction element.
         $slide->annotate_files('mod_interactiveslide', 'questionimage', 'id');
+        // A picture a student attached to an answer is stored against the round,
+        // so it travels with the responses rather than with the deck - and only
+        // when the backup carries user data at all.
+        if ($userinfo) {
+            $round->annotate_files('mod_interactiveslide', 'answerimage', 'id');
+        }
 
         return $this->prepare_activity_structure($interactiveslide);
     }

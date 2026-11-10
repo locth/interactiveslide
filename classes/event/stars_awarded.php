@@ -33,16 +33,21 @@ class stars_awarded extends base {
      *
      * @param context_module $context
      * @param int $sessionid
-     * @param int $userid recipient
+     * @param int $userid recipient; negative for a guest
      * @param int $stars
      * @return base
      */
     public static function create_from_award(context_module $context, int $sessionid, int $userid, int $stars): base {
-        return self::create([
+        // A guest is not a Moodle user, and the log would look one up by this id.
+        $data = [
             'context' => $context,
-            'relateduserid' => $userid,
-            'other' => ['sessionid' => $sessionid, 'stars' => $stars],
-        ]);
+            'other' => ['sessionid' => $sessionid, 'stars' => $stars, 'guestid' => $userid < 0 ? -$userid : 0],
+        ];
+        if ($userid > 0) {
+            $data['relateduserid'] = $userid;
+        }
+
+        return self::create($data);
     }
 
     /**
@@ -71,8 +76,10 @@ class stars_awarded extends base {
      */
     public function get_description() {
         $stars = $this->other['stars'];
-        return "The user with id '{$this->userid}' awarded {$stars} stars to the user with id " .
-            "'{$this->relateduserid}' in the interactiveslide activity with course module id " .
-            "'{$this->contextinstanceid}'.";
+        $recipient = !empty($this->other['guestid'])
+            ? "the guest with id '{$this->other['guestid']}'"
+            : "the user with id '{$this->relateduserid}'";
+        return "The user with id '{$this->userid}' awarded {$stars} stars to {$recipient} " .
+            "in the interactiveslide activity with course module id '{$this->contextinstanceid}'.";
     }
 }

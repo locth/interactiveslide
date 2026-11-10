@@ -43,14 +43,18 @@ class state {
      *
      * @param stdClass $instance the deck record
      * @param context_module $context
-     * @param int $userid the viewer
      * @param bool $ispresenter whether the viewer drives the session
      * @return array
      */
-    public static function build(stdClass $instance, context_module $context, int $userid, bool $ispresenter): array {
+    public static function build(stdClass $instance, context_module $context, bool $ispresenter): array {
         global $DB;
 
         $session = session_manager::get_active_session((int)$instance->id);
+
+        // Who the viewer is as a participant: themselves, a named guest, or a
+        // guest who has not given a name yet. Everything below keys on this id.
+        $me = participation::resolve($instance, $context, $session);
+        $userid = $me->userid;
 
         // The presenter always sees the deck: their screen is the projector.
         // Withholding the image from students is a bandwidth decision, and it is
@@ -81,6 +85,15 @@ class state {
             'canaward' => has_capability('mod/interactiveslide:awardstars', $context),
             'myuserid' => $userid,
             'slidehidden' => $hideslides,
+            'guest' => [
+                'isguest' => $me->isguest,
+                'needsname' => $me->needsname,
+                'removed' => $me->removed,
+                'name' => $me->name,
+            ],
+            'guestlink' => '',
+            'calledcount' => 0,
+            'mycall' => null,
         ];
 
         if (!$session) {
@@ -95,9 +108,13 @@ class state {
         // The join code is a shortcut for the room, not a secret from students.
         $payload['joincode'] = (string)$session->joincode;
 
-        if (has_capability('mod/interactiveslide:submit', $context)
-                && session_manager::can_join($instance, $session, $userid)) {
+        if ($me->canparticipate && session_manager::can_join($instance, $session, $userid)) {
             session_manager::touch_participant($session, $userid);
+        }
+
+        // Only the screen that puts it on the projector is handed the link.
+        if ($ispresenter && guest::enabled($instance)) {
+            $payload['guestlink'] = guest::join_url((int)$context->instanceid, $session)->out(false);
         }
 
         $payload['participantcount'] = $DB->count_records('interactiveslide_participant',
@@ -131,6 +148,14 @@ class state {
         }
 
         $payload = self::add_leaderboard($payload, $instance, $context, $session, $userid, $ispresenter);
+
+        // Being called to the board: the presenter needs only how long the call
+        // list has grown, and a phone only whether its owner is in the last call.
+        if ($ispresenter) {
+            $payload['calledcount'] = count(picker::called_userids((int)$session->id));
+        } else if ($me->canparticipate) {
+            $payload['mycall'] = picker::my_call($session, $userid);
+        }
 
         return $payload;
     }
@@ -191,11 +216,23 @@ class state {
         if ($showresults) {
             // Only the presenter is told who wrote what, so they can hand a star
             // to the student who gave a good answer.
-            $payload['results'] = aggregator::get_results($interaction, $round, $revealed, $ispresenter);
+            $payload['results'] = aggregator::get_results($interaction, $round, $revealed,
+                $ispresenter, $context);
         }
 
         if (!$ispresenter) {
             $payload['myresponse'] = self::export_my_response($round, $interaction, $userid, $revealed);
+
+            // What this person has attached right now, which is not the same as
+            // what they have submitted: a picture is uploaded the moment it is
+            // picked, so it has to survive a reload of the page before the
+            // answer is sent, and has to disappear the moment it is taken away.
+            $payload['myimage'] = '';
+            if ($interaction->qtype === interaction_manager::TYPE_OPENENDED
+                    && !empty($interaction->allowimage)) {
+                $payload['myimage'] = answer_image::url($context, (int)$round->id,
+                    answer_image::current($context, (int)$round->id, $userid));
+            }
         }
 
         return $payload;

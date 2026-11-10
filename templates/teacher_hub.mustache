@@ -117,10 +117,18 @@
             <h3 class="islide-card-title">{{#str}}overallleaderboard, mod_interactiveslide{{/str}}</h3>
             <ol class="islide-board">
                 {{#leaderboard}}
-                    <li class="islide-board-row islide-rank-{{rank}}">
+                    <li class="islide-board-row islide-rank-{{rank}}{{#isguest}} islide-board-guest{{/isguest}}">
                         <span class="islide-board-rank">{{rank}}</span>
                         <span class="islide-board-avatar">{{{pictureurl}}}</span>
-                        <span class="islide-board-name">{{fullname}}</span>
+                        {{#isguest}}
+                            <span class="islide-board-name islide-board-name-guest">
+                                <span class="islide-board-nametext">{{fullname}}</span>
+                                <span class="islide-guest-badge">{{#str}}guestbadge, mod_interactiveslide{{/str}}</span>
+                            </span>
+                        {{/isguest}}
+                        {{^isguest}}
+                            <span class="islide-board-name">{{fullname}}</span>
+                        {{/isguest}}
                         <span class="islide-board-stars">{{stars}}<span class="islide-star" aria-hidden="true">&#9733;</span></span>
                     </li>
                 {{/leaderboard}}

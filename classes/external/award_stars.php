@@ -20,6 +20,7 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use mod_interactiveslide\local\guest;
 use mod_interactiveslide\local\session_manager;
 use moodle_exception;
 
@@ -57,7 +58,7 @@ class award_stars extends external_api {
      * @throws moodle_exception
      */
     public static function execute(int $cmid, int $userid, int $stars, string $reason = ''): array {
-        global $USER;
+        global $DB, $USER;
 
         $params = self::validate_parameters(self::execute_parameters(),
             ['cmid' => $cmid, 'userid' => $userid, 'stars' => $stars, 'reason' => $reason]);
@@ -68,8 +69,15 @@ class award_stars extends external_api {
 
         $session = helper::require_active_session($resolved['instance']);
 
-        // Only people who can actually take part in this activity may be given stars.
-        if (!is_enrolled($resolved['context'], $params['userid'], 'mod/interactiveslide:submit')) {
+        // Stars go to people in this room. An enrolled student qualifies before
+        // they have even polled; anyone else, a guest above all, only by already
+        // being on this session's board. A guest id from another session, or one
+        // the presenter removed, is on no board here and is refused.
+        $recipient = (int)$params['userid'];
+        $inroom = $DB->record_exists('interactiveslide_participant',
+            ['sessionid' => (int)$session->id, 'userid' => $recipient]);
+        if (!$inroom && (guest::is_guest_userid($recipient)
+                || !is_enrolled($resolved['context'], $recipient, 'mod/interactiveslide:submit'))) {
             throw new moodle_exception('errornotparticipant', 'mod_interactiveslide');
         }
 

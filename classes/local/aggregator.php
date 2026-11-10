@@ -65,7 +65,8 @@ class aggregator {
      * @return array
      */
     public static function get_results(stdClass $interaction, stdClass $round,
-            bool $includecorrect, bool $withauthors = false): array {
+            bool $includecorrect, bool $withauthors = false,
+            ?\context_module $context = null): array {
         $result = [
             'qtype' => (string)$interaction->qtype,
             'responsecount' => self::response_count((int)$round->id),
@@ -111,7 +112,8 @@ class aggregator {
                 break;
 
             case interaction_manager::TYPE_OPENENDED:
-                $result['texts'] = self::openended_wall((int)$round->id, $withauthors);
+                $result['texts'] = self::openended_wall((int)$round->id, $withauthors,
+                    self::OPENENDED_LIMIT, $context);
                 break;
         }
 
@@ -136,11 +138,11 @@ class aggregator {
      * @return array[] each with text, count, userid and fullname
      */
     public static function openended_wall(int $roundid, bool $withauthors = false,
-            int $limit = self::OPENENDED_LIMIT): array {
+            int $limit = self::OPENENDED_LIMIT, ?\context_module $context = null): array {
         global $DB;
 
         $rows = $DB->get_records_sql(
-            'SELECT a.id, a.answertext, a.normtext, r.userid
+            'SELECT a.id, a.answertext, a.normtext, r.userid, r.answerimage
                FROM {interactiveslide_answer} a
                JOIN {interactiveslide_response} r ON r.id = a.responseid
               WHERE a.roundid = :roundid AND a.blankid = 0 AND a.optionid = 0
@@ -153,6 +155,14 @@ class aggregator {
         if (!$rows) {
             return [];
         }
+
+        $picture = static function($row) use ($context, $roundid): string {
+            if ($context === null || empty($row->answerimage)) {
+                return '';
+            }
+
+            return answer_image::url($context, $roundid, (string)$row->answerimage);
+        };
 
         if ($withauthors) {
             // One card per person. The teacher rewards individuals here, so two
@@ -168,7 +178,8 @@ class aggregator {
                     'text' => (string)$row->answertext,
                     'count' => 1,
                     'userid' => $userid,
-                    'fullname' => fullname($users[$userid] ?? userinfo::placeholder($userid)),
+                    'fullname' => userinfo::report_name($users[$userid] ?? userinfo::placeholder($userid)),
+                    'imageurl' => $picture($row),
                 ];
             }
 
@@ -179,6 +190,9 @@ class aggregator {
         // group them and badge how often each came up.
         $counts = [];
         foreach ($rows as $row) {
+            if (!empty($row->answerimage)) {
+                continue;
+            }
             $key = (string)$row->normtext;
             $counts[$key] = ($counts[$key] ?? 0) + 1;
         }
@@ -186,6 +200,20 @@ class aggregator {
         $texts = [];
         $seen = [];
         foreach ($rows as $row) {
+            // A picture is not wording. Two people who both wrote "see my
+            // working" attached two different sheets, so a card carrying one
+            // stays a card of its own rather than collapsing into a tally.
+            if (!empty($row->answerimage)) {
+                $texts[] = [
+                    'text' => (string)$row->answertext,
+                    'count' => 1,
+                    'userid' => 0,
+                    'fullname' => '',
+                    'imageurl' => $picture($row),
+                ];
+                continue;
+            }
+
             $key = (string)$row->normtext;
             if (isset($seen[$key])) {
                 continue;
@@ -196,6 +224,7 @@ class aggregator {
                 'count' => $counts[$key],
                 'userid' => 0,
                 'fullname' => '',
+                'imageurl' => '',
             ];
         }
 
@@ -549,7 +578,7 @@ class aggregator {
         foreach ($userids as $userid) {
             $people[] = [
                 'userid' => (int)$userid,
-                'fullname' => fullname($users[$userid] ?? userinfo::placeholder((int)$userid)),
+                'fullname' => userinfo::report_name($users[$userid] ?? userinfo::placeholder((int)$userid)),
             ];
         }
 

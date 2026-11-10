@@ -370,6 +370,13 @@ class interaction_manager {
             $record->videourl = \core_text::substr($videourl, 0, 1333);
         }
         $record->allowretry = (int)!empty($data['allowretry']);
+        // Only an open ended question has anywhere to put a picture, so the flag
+        // is cleared on every other type rather than kept and quietly ignored:
+        // a question changed from open ended to multiple choice must not go on
+        // claiming to accept photographs.
+        $record->allowimage = ($qtype === self::TYPE_OPENENDED)
+            ? (int)!empty($data['allowimage'])
+            : 0;
         $record->timemodified = time();
 
         // The picture and the video that go with the question, whatever it asks.
@@ -968,6 +975,7 @@ class interaction_manager {
             'maxentries' => (int)$interaction->maxentries,
             'maxwordlength' => (int)$interaction->maxwordlength,
             'allowretry' => (int)$interaction->allowretry,
+            'allowimage' => (int)($interaction->allowimage ?? 0),
             'options' => $options,
             'blanks' => $blanks,
         ];

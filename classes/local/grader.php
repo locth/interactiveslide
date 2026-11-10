@@ -44,7 +44,8 @@ class grader {
      * @throws moodle_exception when the round is not accepting this submission
      */
     public static function submit(stdClass $instance, stdClass $session, stdClass $round,
-            stdClass $interaction, int $userid, array $payload): stdClass {
+            stdClass $interaction, int $userid, array $payload,
+            ?\context_module $context = null): stdClass {
         global $DB;
 
         if ($session->status !== session_manager::STATUS_ACTIVE) {
@@ -70,7 +71,13 @@ class grader {
             throw new moodle_exception('erroralreadyanswered', 'mod_interactiveslide');
         }
 
-        $marked = self::mark($interaction, $payload);
+        $image = '';
+        if ($context !== null && $interaction->qtype === interaction_manager::TYPE_OPENENDED
+                && !empty($interaction->allowimage)) {
+            $image = answer_image::current($context, (int)$round->id, $userid);
+        }
+
+        $marked = self::mark($interaction, $payload, $image !== '');
 
         $now = time();
         $timetaken = max(0, ($now - (int)$round->timeopen)) * 1000;
@@ -92,6 +99,7 @@ class grader {
             $response->stars = $marked['stars'];
             $response->bonusstars = $bonus;
             $response->timetaken = $timetaken;
+            $response->answerimage = ($image !== '') ? $image : null;
             $response->timemodified = $now;
             $DB->update_record('interactiveslide_response', $response);
         } else {
@@ -103,6 +111,7 @@ class grader {
             $response->stars = $marked['stars'];
             $response->bonusstars = $bonus;
             $response->timetaken = $timetaken;
+            $response->answerimage = ($image !== '') ? $image : null;
             $response->timecreated = $now;
             $response->timemodified = $now;
             $response->id = $DB->insert_record('interactiveslide_response', $response);
@@ -138,7 +147,7 @@ class grader {
      * @return array{iscorrect: int, stars: int, answers: array[]}
      * @throws moodle_exception when the submission is empty or malformed
      */
-    public static function mark(stdClass $interaction, array $payload): array {
+    public static function mark(stdClass $interaction, array $payload, bool $hasimage = false): array {
         switch ($interaction->qtype) {
             case interaction_manager::TYPE_WORDCLOUD:
                 return self::mark_wordcloud($interaction, $payload);
@@ -153,7 +162,7 @@ class grader {
             case interaction_manager::TYPE_FILLBLANK:
                 return self::mark_fillblank($interaction, $payload);
             case interaction_manager::TYPE_OPENENDED:
-                return self::mark_openended($interaction, $payload);
+                return self::mark_openended($interaction, $payload, $hasimage);
             default:
                 throw new moodle_exception('errorinvalidqtype', 'mod_interactiveslide');
         }
@@ -206,7 +215,8 @@ class grader {
      * @return array{iscorrect: int, stars: int, answers: array[]}
      * @throws moodle_exception
      */
-    private static function mark_openended(stdClass $interaction, array $payload): array {
+    private static function mark_openended(stdClass $interaction, array $payload,
+            bool $hasimage = false): array {
         $text = $payload['text'] ?? '';
         if (is_array($text)) {
             $text = implode(' ', array_map('strval', $text));
@@ -218,7 +228,9 @@ class grader {
         $text = preg_replace('/\n{3,}/u', "\n\n", (string)$text);
         $text = trim((string)$text);
 
-        if ($text === '') {
+        // A photograph of a worked solution is an answer. What is not an answer
+        // is an empty box with nothing attached either.
+        if ($text === '' && !$hasimage) {
             throw new moodle_exception('erroremptyanswer', 'mod_interactiveslide');
         }
 

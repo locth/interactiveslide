@@ -399,6 +399,7 @@ define([
         setCheck(view, 'showliveresult', interaction.showliveresult);
         setCheck(view, 'showleaderboard', interaction.showleaderboard);
         setCheck(view, 'allowretry', interaction.allowretry);
+        setCheck(view, 'allowimage', interaction.allowimage);
 
         setDifficulty(view, interaction.difficulty === 'custom' ? 'easy' : interaction.difficulty);
 
@@ -531,6 +532,7 @@ define([
                 (qtype === 'wordcloud' || qtype === 'openended') ? 1 : 0);
             setCheck(view, 'showleaderboard', 1);
             setCheck(view, 'allowretry', 0);
+            setCheck(view, 'allowimage', 0);
             setField(view, 'maxentries', 3);
             // A word is thirty characters; a written answer needs room to breathe.
             setField(view, 'maxwordlength', qtype === 'openended' ? 300 : 30);
@@ -582,6 +584,9 @@ define([
                 : view.strings.maxwordlength;
         }
         Util.toggle(Util.region(view.root, 'allowmultiplewrap'), qtype === 'multichoice');
+        // Only a written answer has anywhere to put a picture: there is nothing
+        // to attach one to in a tally of choices or a word cloud.
+        Util.toggle(Util.region(view.root, 'allowimagewrap'), qtype === 'openended');
         // Fill in the blanks always keeps typed answers off the projector until
         // collecting stops, so offering the switch there would promise nothing.
         Util.toggle(Util.region(view.root, 'liveresultwrap'),
@@ -1244,6 +1249,7 @@ define([
             mediaimageheight: view.questionImage ? view.questionImage.height : 0,
             mediavideourl: field(view, 'mediavideourl') ? field(view, 'mediavideourl').value : '',
             allowretry: field(view, 'allowretry').checked ? 1 : 0,
+            allowimage: field(view, 'allowimage').checked ? 1 : 0,
             options: collectOptions(view),
             blanks: collectBlanks(view)
         };

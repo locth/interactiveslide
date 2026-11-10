@@ -30,9 +30,11 @@ define([
     'mod_interactiveslide/annotate',
     'mod_interactiveslide/api',
     'mod_interactiveslide/poller',
+    'mod_interactiveslide/qrcode',
+    'mod_interactiveslide/randompick',
     'mod_interactiveslide/render',
     'mod_interactiveslide/util'
-], function(Str, Notification, Annotate, Api, Poller, Render, Util) {
+], function(Str, Notification, Annotate, Api, Poller, QR, RandomPick, Render, Util) {
 
     /** @var {String} Body class that lifts the console over the whole viewport. */
     var IMMERSIVE_CLASS = 'mod-interactiveslide-immersive';
@@ -48,7 +50,15 @@ define([
         'showresultscreen', 'hideresultscreen', 'novideo', 'video',
         'questionimagealt', 'enlargeimage',
         'awardclasstitle', 'awardclass_desc', 'awardgroup', 'groupawarded', 'groupawardreason',
-        'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching'
+        'showvoters', 'voterstitle', 'voterscount', 'boardnomatch', 'boardsearching',
+        'answerimagealt',
+        'guestbadge', 'removeguest', 'confirmremoveguest', 'confirmremoveguest_desc', 'guestremovedtoast',
+        'guestlinkcopied', 'guestlinkcopyfailed',
+        'pluginname', 'randomcall', 'randomcallpeople', 'randomcallcalled', 'randomcallresetdone',
+        'randomcallskip', 'randomcalldone', 'randomcallagain', 'randomcallaward', 'randomcallawardall',
+        'randomcallawardone', 'randomcallreason', 'randomcallshortfall', 'randomcallmeta',
+        'randomcallstarsgiven', 'drawfortune', 'drawfortunefor', 'fortunecardback', 'fortunenext',
+        'fortuneof', 'fortuneeffect', 'fortuneback', 'fortuneredraw'
     ];
 
     /** @var {Number} The most stars the group panel offers; the server allows up to 100. */
@@ -115,7 +125,11 @@ define([
             // The panel that gives several people stars at once: the whole class,
             // or everyone behind one answer. Null while it is closed.
             group: null,
-            groupStars: 1
+            groupStars: 1,
+            // The link of the running session, and what stands between guests and
+            // the course, worked out once when the console opened.
+            guestLink: '',
+            guestWarning: config.guestwarning || ''
         };
 
         view.poller = Poller.create({
@@ -130,6 +144,18 @@ define([
         });
 
         view.annotate = Annotate.create(root);
+        view.pick = RandomPick.create({
+            root: root,
+            cmid: config.cmid,
+            strings: strings,
+            canaward: config.canaward,
+            adopt: function(state) {
+                view.poller.adopt(state);
+            },
+            toast: function(message, tone) {
+                Util.toast(root, message, tone);
+            }
+        });
         view.imageViewer = Util.imageViewer(root);
         offerStandaloneLaunch();
 
@@ -139,6 +165,7 @@ define([
         bindGroupAward(view);
         bindImageViewer(view);
         bindKeyboard(view);
+        bindInvite(view);
 
         view.poller.start();
     };
@@ -355,6 +382,23 @@ define([
                 return;
             }
             node.addEventListener('click', function(event) {
+                var remove = event.target.closest('[data-remove-guest]');
+                if (remove) {
+                    var guestid = parseInt(remove.dataset.removeGuest, 10);
+                    Notification.saveCancelPromise(
+                        view.strings.confirmremoveguest,
+                        view.strings.confirmremoveguest_desc,
+                        view.strings.removeguest
+                    ).then(function() {
+                        return act(view, function() {
+                            return Api.removeGuest(view.cmid, guestid);
+                        }, view.strings.guestremovedtoast);
+                    }).catch(function() {
+                        return null;
+                    });
+                    return;
+                }
+
                 var button = event.target.closest('[data-award-userid]');
                 if (!button) {
                     return;
@@ -383,6 +427,287 @@ define([
     };
 
     /**
+     * The invite dropdown and the QR code it opens.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var bindInvite = function(view) {
+        var toggle = Util.actions(view.root, 'toggleinvite')[0];
+        var menu = Util.region(view.root, 'invitemenu');
+        if (!toggle || !menu) {
+            return;
+        }
+
+        toggle.addEventListener('click', function() {
+            if (menu.hidden) {
+                setInviteOpen(view, true);
+            } else {
+                setInviteOpen(view, false);
+            }
+        });
+
+        // A click anywhere else puts the menu away, as a menu does.
+        document.addEventListener('click', function(event) {
+            if (!menu.hidden && !menu.contains(event.target) && !toggle.contains(event.target)) {
+                setInviteOpen(view, false);
+            }
+        });
+
+        // Turning a tablet round moves the button the menu hangs from.
+        window.addEventListener('resize', function() {
+            if (!menu.hidden) {
+                placeInviteMenu(menu);
+            }
+        });
+
+        var field = Util.region(view.root, 'invitelink');
+        if (field) {
+            field.addEventListener('focus', function() {
+                field.select();
+            });
+        }
+
+        Util.actions(view.root, 'copyguestlink').forEach(function(button) {
+            button.addEventListener('click', function() {
+                copyGuestLink(view);
+            });
+        });
+
+        Util.actions(view.root, 'showguestqr').forEach(function(button) {
+            button.addEventListener('click', function() {
+                setInviteOpen(view, false);
+                setGuestQrOpen(view, true);
+            });
+        });
+
+        Util.actions(view.root, 'closeguestqr').forEach(function(button) {
+            button.addEventListener('click', function() {
+                setGuestQrOpen(view, false);
+            });
+        });
+
+        var dialog = Util.region(view.root, 'guestqr');
+        if (dialog) {
+            // The dimmed backdrop closes it; the card itself does not.
+            dialog.addEventListener('click', function(event) {
+                if (event.target === dialog) {
+                    setGuestQrOpen(view, false);
+                }
+            });
+        }
+    };
+
+    /**
+     * Show the invite button while guests can use it, and keep its link current.
+     *
+     * @param {Object} view
+     * @param {Object} state
+     * @return {void}
+     */
+    var updateInvite = function(view, state) {
+        var invite = Util.region(view.root, 'invite');
+        if (!invite) {
+            return;
+        }
+
+        var link = state.hassession ? (state.guestlink || '') : '';
+        Util.toggle(invite, link !== '');
+
+        if (link === '') {
+            view.guestLink = '';
+            setInviteOpen(view, false);
+            setGuestQrOpen(view, false);
+            return;
+        }
+
+        var warning = Util.region(view.root, 'invitewarning');
+        if (warning) {
+            warning.textContent = view.guestWarning;
+            Util.toggle(warning, view.guestWarning !== '');
+        }
+
+        if (link === view.guestLink) {
+            return;
+        }
+        view.guestLink = link;
+
+        var field = Util.region(view.root, 'invitelink');
+        if (field) {
+            field.value = link;
+        }
+
+        // A new session is a new link, and a code already on the projector has
+        // to follow it or the room scans a dead one.
+        var dialog = Util.region(view.root, 'guestqr');
+        if (dialog && !dialog.hidden) {
+            drawGuestQr(view);
+        }
+    };
+
+    /**
+     * Open or close the invite menu.
+     *
+     * @param {Object} view
+     * @param {Boolean} open
+     * @return {void}
+     */
+    var setInviteOpen = function(view, open) {
+        var toggle = Util.actions(view.root, 'toggleinvite')[0];
+        var menu = Util.region(view.root, 'invitemenu');
+        if (!toggle || !menu) {
+            return;
+        }
+        menu.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) {
+            placeInviteMenu(menu);
+        }
+    };
+
+    /**
+     * Keep the invite menu inside the screen.
+     *
+     * It hangs from the right edge of its button, which on a narrow screen puts
+     * the start of the link off the left edge. The start of the link is the part
+     * a teacher reads, so when the menu cannot fit either side it is the left
+     * edge that is kept.
+     *
+     * @param {Element} menu
+     * @return {void}
+     */
+    var placeInviteMenu = function(menu) {
+        var margin = 8;
+        menu.style.right = '';
+
+        var viewport = document.documentElement.clientWidth;
+        var box = menu.getBoundingClientRect();
+        var shift = 0;
+
+        if (box.right > viewport - margin) {
+            shift = box.right - (viewport - margin);
+        }
+        if (box.left - shift < margin) {
+            shift = box.left - margin;
+        }
+        if (shift !== 0) {
+            // A positive right offset moves the menu left, a negative one right.
+            menu.style.right = shift + 'px';
+        }
+    };
+
+    /**
+     * Open or close the QR code dialog.
+     *
+     * @param {Object} view
+     * @param {Boolean} open
+     * @return {void}
+     */
+    var setGuestQrOpen = function(view, open) {
+        var dialog = Util.region(view.root, 'guestqr');
+        if (!dialog) {
+            return;
+        }
+        if (open) {
+            if (!view.guestLink) {
+                return;
+            }
+            drawGuestQr(view);
+        }
+        var wasOpen = !dialog.hidden;
+        dialog.hidden = !open;
+
+        if (open) {
+            var close = dialog.querySelector('[data-action="closeguestqr"]');
+            if (close) {
+                close.focus();
+            }
+        } else if (wasOpen) {
+            var toggle = Util.actions(view.root, 'toggleinvite')[0];
+            if (toggle && !toggle.closest('[hidden]')) {
+                toggle.focus();
+            }
+        }
+    };
+
+    /**
+     * Draw the running session's link as a QR code.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var drawGuestQr = function(view) {
+        var code = Util.region(view.root, 'guestqrcode');
+        if (code) {
+            // Built by the encoder from numbers alone, so it can go straight in.
+            code.innerHTML = QR.svg(view.guestLink, {level: 'M'});
+        }
+        var text = Util.region(view.root, 'guestqrlink');
+        if (text) {
+            text.textContent = view.guestLink;
+        }
+    };
+
+    /**
+     * Copy the guest link, falling back to the selected field where the
+     * clipboard API is not available, which is any page not served over HTTPS.
+     *
+     * @param {Object} view
+     * @return {void}
+     */
+    var copyGuestLink = function(view) {
+        if (!view.guestLink) {
+            return;
+        }
+
+        var fallback = function() {
+            var field = Util.region(view.root, 'invitelink');
+            var copied = false;
+            if (field) {
+                field.focus();
+                field.select();
+                try {
+                    copied = document.execCommand('copy');
+                } catch (e) {
+                    copied = false;
+                }
+            }
+            Util.toast(view.root,
+                copied ? view.strings.guestlinkcopied : view.strings.guestlinkcopyfailed,
+                copied ? 'success' : 'error');
+        };
+
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(view.guestLink).then(function() {
+                Util.toast(view.root, view.strings.guestlinkcopied, 'success');
+                return null;
+            }).catch(fallback);
+        } else {
+            fallback();
+        }
+    };
+
+    /**
+     * Close whichever guest layer is open.
+     *
+     * @param {Object} view
+     * @return {Boolean} true when something was closed
+     */
+    var closeGuestLayers = function(view) {
+        var dialog = Util.region(view.root, 'guestqr');
+        if (dialog && !dialog.hidden) {
+            setGuestQrOpen(view, false);
+            return true;
+        }
+        var menu = Util.region(view.root, 'invitemenu');
+        if (menu && !menu.hidden) {
+            setInviteOpen(view, false);
+            return true;
+        }
+        return false;
+    };
+
+    /**
      * Keyboard transport, so the presenter can drive from a clicker.
      *
      * @param {Object} view
@@ -390,6 +715,17 @@ define([
      */
     var bindKeyboard = function(view) {
         document.addEventListener('keydown', function(event) {
+            // The invitation is on top of everything, so Escape puts it away first.
+            if (event.key === 'Escape' && closeGuestLayers(view)) {
+                event.preventDefault();
+                return;
+            }
+
+            // A random call on screen owns the keyboard until it is put away.
+            if (view.pick && view.pick.handleKey(event)) {
+                return;
+            }
+
             // A key event can be aimed at something that is not an element, and
             // matches() only exists on elements. Typing into a field is what this
             // is guarding against, so anything else is fair game for a shortcut.
@@ -516,6 +852,8 @@ define([
             endButton.hidden = !state.hassession;
         }
         Util.toggle(sessionInfo, state.hassession);
+        updateInvite(view, state);
+        view.pick.update(state);
 
         if (state.hassession) {
             var code = Util.region(view.root, 'joincode');
@@ -832,7 +1170,7 @@ define([
             button.hidden = !(view.canAward && state.hassession && state.participantcount > 0);
         });
 
-        var options = {award: view.canAward};
+        var options = {award: view.canAward, removeGuests: true};
         var board = state.leaderboard;
 
         if (Util.fold(query) !== '') {
@@ -1061,14 +1399,12 @@ define([
      * @return {void}
      */
     var bindImageViewer = function(view) {
-        var box = Util.region(view.root, 'overlay-media');
-        if (!box) {
-            return;
-        }
-
-        box.addEventListener('click', function(event) {
-            var picture = event.target.closest('img');
-            if (picture) {
+        // Anything drawn with the zoomable class, wherever it sits: the
+        // question's own picture above the results, and the photographs
+        // students attach to open ended answers on the wall below them.
+        view.root.addEventListener('click', function(event) {
+            var picture = event.target.closest('img.islide-zoomable');
+            if (picture && picture.getAttribute('src')) {
                 view.imageViewer.open(picture.getAttribute('src'));
             }
         });

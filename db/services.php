@@ -146,4 +146,52 @@ $functions = [
         'ajax'        => true,
         'capabilities' => 'mod/interactiveslide:manage',
     ],
+
+    'mod_interactiveslide_join_as_guest' => [
+        'classname'   => 'mod_interactiveslide\\external\\join_as_guest',
+        'description' => 'Take part in the running session as a guest, under a name.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:view',
+    ],
+
+    'mod_interactiveslide_remove_guest' => [
+        'classname'   => 'mod_interactiveslide\\external\\remove_guest',
+        'description' => 'Take a guest out of the running session, with their answers.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
+
+    'mod_interactiveslide_pick_random' => [
+        'classname'   => 'mod_interactiveslide\\external\\pick_random',
+        'description' => 'Call one or more people in the room to the board, at random.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
+
+    'mod_interactiveslide_draw_fortune' => [
+        'classname'   => 'mod_interactiveslide\\external\\draw_fortune',
+        'description' => 'Draw the fortune card of someone who was called.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
+
+    'mod_interactiveslide_apply_fortune' => [
+        'classname'   => 'mod_interactiveslide\\external\\apply_fortune',
+        'description' => 'Pay the stars a fortune card promised.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present, mod/interactiveslide:awardstars',
+    ],
+
+    'mod_interactiveslide_reset_picks' => [
+        'classname'   => 'mod_interactiveslide\\external\\reset_picks',
+        'description' => 'Let everyone in the session be called again.',
+        'type'        => 'write',
+        'ajax'        => true,
+        'capabilities' => 'mod/interactiveslide:present',
+    ],
 ];

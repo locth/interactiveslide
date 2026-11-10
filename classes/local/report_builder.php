@@ -98,7 +98,7 @@ class report_builder {
 
             $rows[] = [
                 'idnumber' => (string)($user->idnumber ?? ''),
-                'fullname' => fullname($user),
+                'fullname' => userinfo::report_name($user),
                 'sessions' => (int)$record->sessions,
                 'questions' => $answered[$userid] ?? 0,
                 'attendance' => (int)$record->attendance,
@@ -351,7 +351,7 @@ class report_builder {
 
             $row = [
                 'idnumber' => (string)($user->idnumber ?? ''),
-                'fullname' => fullname($user),
+                'fullname' => userinfo::report_name($user),
             ];
 
             foreach ($decks as $instanceid => $unusedname) {
@@ -446,7 +446,7 @@ class report_builder {
 
             $row = [
                 'idnumber' => (string)($user->idnumber ?? ''),
-                'fullname' => fullname($user),
+                'fullname' => userinfo::report_name($user),
             ];
 
             foreach ($rounds as $round) {

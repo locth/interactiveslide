@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="mod/interactiveslide/db" VERSION="20260920" COMMENT="Interactive Slide activity module"
+<XMLDB PATH="mod/interactiveslide/db" VERSION="20261002" COMMENT="Interactive Slide activity module"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -20,6 +20,7 @@
         <FIELD NAME="speedbonusmax" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
         <FIELD NAME="attendancestars" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Stars given once for joining a session."/>
         <FIELD NAME="anonymousresults" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hide other students names on the leaderboard shown to students."/>
+        <FIELD NAME="allowguests" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Guests of the course may take part through the session link."/>
         <FIELD NAME="pdffilename" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -76,6 +77,7 @@
         <FIELD NAME="mediaimageheight" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="mediavideourl" TYPE="char" LENGTH="1333" NOTNULL="false" SEQUENCE="false" COMMENT="A video shown with the question on the presenter screen only."/>
         <FIELD NAME="allowretry" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Allow a student to change their answer while the round is open."/>
+        <FIELD NAME="allowimage" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Open ended question: a student may attach one picture to their answer."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -128,6 +130,7 @@
         <FIELD NAME="status" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="active" SEQUENCE="false" COMMENT="active|ended"/>
         <FIELD NAME="currentslideid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="joincode" TYPE="char" LENGTH="12" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="guesttoken" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="Token in the guest link. A new one every session, so an old link opens nothing."/>
         <FIELD NAME="createdby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="statechanged" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Revision counter bumped on every state change, used by pollers."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
@@ -141,6 +144,20 @@
         <INDEX NAME="deck-status" UNIQUE="false" FIELDS="interactiveslideid, status"/>
         <INDEX NAME="joincode" UNIQUE="false" FIELDS="joincode"/>
       </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="interactiveslide_guest" COMMENT="Someone taking part in one session under a name they gave, with no account of their own. Recorded elsewhere under the negative of this id.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="displayname" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="removed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Taken out by the presenter. The name is blanked with it."/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
+      </KEYS>
     </TABLE>
 
     <TABLE NAME="interactiveslide_round" COMMENT="One run of an interaction inside a session.">
@@ -177,6 +194,7 @@
         <FIELD NAME="stars" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="bonusstars" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timetaken" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Milliseconds from round open to submission."/>
+        <FIELD NAME="answerimage" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="File name of a picture the student attached, in the answerimage file area. Null for none."/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
@@ -254,6 +272,31 @@
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
       </KEYS>
+    </TABLE>
+    <TABLE NAME="interactiveslide_pick" COMMENT="One person called at random by the presenter, and the fortune card they drew. Recorded under the participant id, so a guest is the negative of their guest row.">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sessionid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="batch" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Picks made by one press of the button share a batch number, counted per session."/>
+        <FIELD NAME="position" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Order in which the cards of a batch are revealed."/>
+        <FIELD NAME="fortune" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Key of the fortune card drawn, null until one is drawn."/>
+        <FIELD NAME="prophecy" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Which of the card's prophecies was read out, counted from 1."/>
+        <FIELD NAME="fortuneapplied" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The stars the card promises have been paid."/>
+        <FIELD NAME="cleared" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The presenter started the call list over; this person may be called again."/>
+        <FIELD NAME="closed" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="The class moved on, to another slide or a question, so phones stop showing this call."/>
+        <FIELD NAME="pickedby" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timefortune" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sessionid" TYPE="foreign" FIELDS="sessionid" REFTABLE="interactiveslide_session" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="session-batch" UNIQUE="false" FIELDS="sessionid, batch"/>
+        <INDEX NAME="session-user" UNIQUE="false" FIELDS="sessionid, userid"/>
+      </INDEXES>
     </TABLE>
   </TABLES>
 </XMLDB>

@@ -261,6 +261,7 @@ class deck_archive {
             'mediaimageheight' => (int)($interaction->mediaimageheight ?? 0),
             'mediavideourl' => (string)($interaction->mediavideourl ?? ''),
             'allowretry' => (int)$interaction->allowretry,
+            'allowimage' => (int)($interaction->allowimage ?? 0),
             'options' => $options,
             'blanks' => $blanks,
         ];
@@ -312,6 +313,7 @@ class deck_archive {
             'mediaimagesha1' => (string)($raw['mediaimagesha1'] ?? ''),
             'mediavideourl' => (string)($raw['mediavideourl'] ?? ''),
             'allowretry' => (int)!empty($raw['allowretry']),
+            'allowimage' => (int)!empty($raw['allowimage']),
             'options' => self::options_from_manifest($raw['options'] ?? []),
             'blanks' => [],
         ];

@@ -119,7 +119,9 @@ class grading {
         }
 
         $params = ['instanceid' => (int)$instance->id];
-        $where = 'p.interactiveslideid = :instanceid';
+        // Guests are recorded under negative ids and have no place in a gradebook:
+        // there is no enrolment to hang a grade on, and the id is nobody's.
+        $where = 'p.interactiveslideid = :instanceid AND p.userid > 0';
         if ($userid) {
             $where .= ' AND p.userid = :userid';
             $params['userid'] = $userid;
@@ -202,6 +204,9 @@ class grading {
     /**
      * The highest star total any student has reached on a deck.
      *
+     * Guests are left out: under the relative method a visitor topping the board
+     * would otherwise lower the grade of every enrolled student.
+     *
      * @param int $interactiveslideid
      * @return int
      */
@@ -212,7 +217,7 @@ class grading {
             'SELECT MAX(usertotal)
                FROM (SELECT SUM(totalstars) AS usertotal
                        FROM {interactiveslide_participant}
-                      WHERE interactiveslideid = :instanceid
+                      WHERE interactiveslideid = :instanceid AND userid > 0
                    GROUP BY userid) totals',
             ['instanceid' => $interactiveslideid]
         );

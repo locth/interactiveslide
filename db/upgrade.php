@@ -113,5 +113,109 @@ function xmldb_interactiveslide_upgrade($oldversion) {
         upgrade_mod_savepoint(true, 2026092100, 'interactiveslide');
     }
 
+    if ($oldversion < 2026100100) {
+        // Guests of the course take part through a link that belongs to one
+        // session. Off unless the teacher turns it on, and the site's own switch
+        // has to be on first.
+        //
+        // This step sits after the media one although the feature came first:
+        // the two were built on separate branches, and a site that installed
+        // 2.0.5 has a saved version later than the number this step used to
+        // carry, so at its old number it would never have run there. Every
+        // statement below is guarded, so arriving from either branch is safe.
+        $table = new xmldb_table('interactiveslide');
+        $field = new xmldb_field('allowguests', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'anonymousresults');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // Null for a session that was already running: its token is created the
+        // first time a presenter asks for the link.
+        $table = new xmldb_table('interactiveslide_session');
+        $field = new xmldb_field('guesttoken', XMLDB_TYPE_CHAR, '40', null,
+            null, null, null, 'joincode');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        // One row per guest per session. Every other table records a guest under
+        // the negative of this id, so none of them needed a new column.
+        $table = new xmldb_table('interactiveslide_guest');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('displayname', XMLDB_TYPE_CHAR, '100', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('removed', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('sessionid', XMLDB_KEY_FOREIGN, ['sessionid'], 'interactiveslide_session', ['id']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026100100, 'interactiveslide');
+    }
+
+    if ($oldversion < 2026100200) {
+        // An open ended question may now invite a picture with the answer. The
+        // flag is the teacher's; the column on the response holds the file name
+        // of what one student actually attached.
+        $table = new xmldb_table('interactiveslide_interaction');
+        $field = new xmldb_field('allowimage', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'allowretry');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $table = new xmldb_table('interactiveslide_response');
+        $field = new xmldb_field('answerimage', XMLDB_TYPE_CHAR, '255', null,
+            null, null, null, 'timetaken');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026100200, 'interactiveslide');
+    }
+
+    if ($oldversion < 2026102100) {
+        // Calling someone at random to the board, and the fortune card they draw.
+        $table = new xmldb_table('interactiveslide_pick');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('sessionid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('batch', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('position', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fortune', XMLDB_TYPE_CHAR, '20', null, null, null, null);
+        $table->add_field('prophecy', XMLDB_TYPE_INTEGER, '4', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('fortuneapplied', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('cleared', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('pickedby', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_field('timefortune', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('sessionid', XMLDB_KEY_FOREIGN, ['sessionid'], 'interactiveslide_session', ['id']);
+        $table->add_index('session-batch', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'batch']);
+        $table->add_index('session-user', XMLDB_INDEX_NOTUNIQUE, ['sessionid', 'userid']);
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_mod_savepoint(true, 2026102100, 'interactiveslide');
+    }
+
+    if ($oldversion < 2026102101) {
+        // A call stays on the phones only until the class moves on. Calls made
+        // before this step have no such mark; they count as still open until
+        // the next slide change or question closes them like any other.
+        $table = new xmldb_table('interactiveslide_pick');
+        $field = new xmldb_field('closed', XMLDB_TYPE_INTEGER, '1', null,
+            XMLDB_NOTNULL, null, '0', 'cleared');
+        if (!$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_mod_savepoint(true, 2026102101, 'interactiveslide');
+    }
+
     return true;
 }
